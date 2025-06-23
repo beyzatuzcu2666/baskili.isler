@@ -17,14 +17,21 @@ import {
 } from '@mui/material';
 import { Product } from '../types/product';
 import { productsService } from '../services/products';
+import { ConfirmationDialog } from './ConfirmationDialog';
+import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 
-const Products = () => {
+const Products: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [newProductName, setNewProductName] = useState('');
+  const [newProductCode, setNewProductCode] = useState('');
+  const [newProductPrice, setNewProductPrice] = useState('');
+  const [newProductUnit, setNewProductUnit] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteProductId, setDeleteProductId] = useState<number | null>(null);
 
   useEffect(() => {
     loadProducts();
@@ -47,12 +54,20 @@ const Products = () => {
   };
 
   const handleCreate = async () => {
-    if (!newProductName.trim()) return;
+    if (!newProductName.trim() || !newProductCode.trim() || !newProductPrice.trim() || !newProductUnit.trim()) return;
 
     try {
-      const product = await productsService.create({ name: newProductName });
+      const product = await productsService.create({
+        name: newProductName,
+        code: newProductCode,
+        unitPrice: parseFloat(newProductPrice),
+        unit: newProductUnit
+      });
       setProducts([...products, product]);
       setNewProductName('');
+      setNewProductCode('');
+      setNewProductPrice('');
+      setNewProductUnit('');
       setOpenDialog(false);
     } catch (error) {
       console.error('Error creating product:', error);
@@ -62,6 +77,9 @@ const Products = () => {
   const handleEdit = async (product: Product) => {
     setSelectedProduct(product);
     setNewProductName(product.name);
+    setNewProductCode(product.code);
+    setNewProductPrice(product.unitPrice.toString());
+    setNewProductUnit(product.unit);
     setOpenDialog(true);
   };
 
@@ -69,10 +87,18 @@ const Products = () => {
     if (!selectedProduct) return;
 
     try {
-      const updatedProduct = await productsService.update(selectedProduct.id, { name: newProductName });
+      const updatedProduct = await productsService.update(selectedProduct.id, {
+        name: newProductName,
+        code: newProductCode,
+        unitPrice: parseFloat(newProductPrice),
+        unit: newProductUnit
+      });
       setProducts(products.map(p => p.id === selectedProduct.id ? updatedProduct : p));
       setSelectedProduct(null);
       setNewProductName('');
+      setNewProductCode('');
+      setNewProductPrice('');
+      setNewProductUnit('');
       setOpenDialog(false);
     } catch (error) {
       console.error('Error updating product:', error);
@@ -80,11 +106,20 @@ const Products = () => {
   };
 
   const handleDelete = async (id: number) => {
-    try {
-      await productsService.delete(id);
-      setProducts(products.filter(p => p.id !== id));
-    } catch (error) {
-      console.error('Error deleting product:', error);
+    setDeleteProductId(id);
+    setConfirmDelete(true);
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (deleteProductId) {
+      try {
+        await productsService.delete(deleteProductId);
+        setProducts(products.filter(p => p.id !== deleteProductId));
+        setDeleteProductId(null);
+        setConfirmDelete(false);
+      } catch (error) {
+        console.error('Error deleting product:', error);
+      }
     }
   };
 
@@ -105,14 +140,15 @@ const Products = () => {
           <Table>
             <TableHead>
               <TableRow>
+                <TableCell>Ürün Kodu</TableCell>
                 <TableCell>Ürün Adı</TableCell>
-                <TableCell>Oluşturulma Tarihi</TableCell>
+                <TableCell>Ürün Fiyatı</TableCell>
                 <TableCell>İşlemler</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               <TableRow>
-                <TableCell colSpan={3} style={{ textAlign: 'center', padding: '20px' }}>
+                <TableCell colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <div style={{ width: '20px', height: '20px', border: '3px solid #f3f3f3', borderTop: '3px solid #3498db', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 10px' }}></div>
                     <span>Yükleniyor...</span>
@@ -143,14 +179,15 @@ const Products = () => {
           <Table>
             <TableHead>
               <TableRow>
+                <TableCell>Ürün Kodu</TableCell>
                 <TableCell>Ürün Adı</TableCell>
-                <TableCell>Oluşturulma Tarihi</TableCell>
+                <TableCell>Ürün Fiyatı</TableCell>
                 <TableCell>İşlemler</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               <TableRow>
-                <TableCell colSpan={3} style={{ textAlign: 'center', padding: '20px', color: '#dc3545' }}>
+                <TableCell colSpan={4} style={{ textAlign: 'center', padding: '20px', color: '#dc3545' }}>
                   {error}
                 </TableCell>
               </TableRow>
@@ -178,41 +215,36 @@ const Products = () => {
         <Table>
           <TableHead>
             <TableRow>
+              <TableCell>Ürün Kodu</TableCell>
               <TableCell>Ürün Adı</TableCell>
-              <TableCell>Oluşturulma Tarihi</TableCell>
+              <TableCell>Ürün Fiyatı</TableCell>
               <TableCell>İşlemler</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {products.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3} style={{ textAlign: 'center' }}>
+                <TableCell colSpan={4} style={{ textAlign: 'center' }}>
                   Kayıtlı ürün bulunamadı
                 </TableCell>
               </TableRow>
             ) : (
               products.map((product) => (
                 <TableRow key={product.id}>
+                  <TableCell>{product.code}</TableCell>
                   <TableCell>{product.name}</TableCell>
-                  <TableCell>{new Date(product.createdAt).toLocaleDateString()}</TableCell>
-                  <TableCell>
-                    <Button
-                      variant="outlined"
-                      color="primary"
-                      size="small"
+                  <TableCell>{product.unitPrice} {product.unit}</TableCell>
+                  <TableCell style={{ textAlign: 'center' }}>
+                    <EditIcon 
+                      fontSize="small" 
+                      style={{ cursor: 'pointer', marginRight: 8 }} 
                       onClick={() => handleEdit(product)}
-                    >
-                      Düzenle
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      size="small"
-                      sx={{ ml: 1 }}
+                    />
+                    <DeleteIcon 
+                      fontSize="small" 
+                      style={{ cursor: 'pointer', color: 'red' }} 
                       onClick={() => handleDelete(product.id)}
-                    >
-                      Sil
-                    </Button>
+                    />
                   </TableCell>
                 </TableRow>
               ))
@@ -227,10 +259,35 @@ const Products = () => {
           <TextField
             autoFocus
             margin="dense"
+            label="Ürün Kodu"
+            fullWidth
+            value={newProductCode}
+            onChange={(e) => setNewProductCode(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            margin="dense"
             label="Ürün Adı"
             fullWidth
             value={newProductName}
             onChange={(e) => setNewProductName(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            margin="dense"
+            label="Ürün Fiyatı"
+            fullWidth
+            value={newProductPrice}
+            onChange={(e) => setNewProductPrice(e.target.value)}
+            sx={{ mb: 2 }}
+            type="number"
+          />
+          <TextField
+            margin="dense"
+            label="Birim"
+            fullWidth
+            value={newProductUnit}
+            onChange={(e) => setNewProductUnit(e.target.value)}
           />
         </DialogContent>
         <DialogActions>
@@ -243,6 +300,13 @@ const Products = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      <ConfirmationDialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={confirmDeleteProduct}
+        title="Ürün Silme Onayı"
+        message="Bu ürünü silmek istediğinize emin misiniz?"
+      />
     </Box>
   );
 };

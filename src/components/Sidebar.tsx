@@ -31,7 +31,6 @@ const Sidebar = () => {
     { text: 'Teklifler', path: '/offers', icon: <ListAltIcon /> },
     { text: 'Markalar', path: '/brands', icon: <StoreIcon /> },
     { text: 'Siparişler', path: '/orders', icon: <ListAltIcon /> },
-    { text: 'Çalışanlar', path: '/employees', icon: <PeopleIcon /> },
   ];
 
   return (

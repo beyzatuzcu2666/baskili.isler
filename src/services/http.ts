@@ -59,7 +59,38 @@ export const http = {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error('Network error: Failed to post data. Please check your internet connection.');
+      throw new Error('Network error: Failed to send POST request. Please check your internet connection.');
+    }
+  },
+
+  async patch<T = any>(endpoint: string, data: any): Promise<T> {
+    try {
+      const headers = new Headers();
+      headers.set('Content-Type', 'application/json');
+      headers.set('Accept', 'application/json');
+      
+      const token = authService.getToken();
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+      
+      const response = await fetch(`${BASE_URL}${endpoint}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || 'Unknown error'}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Network error: Failed to send PATCH request. Please check your internet connection.');
     }
   },
 
@@ -90,7 +121,7 @@ export const http = {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error('Network error: Failed to update data. Please check your internet connection.');
+      throw new Error('Network error: Failed to send PUT request. Please check your internet connection.');
     }
   },
 
@@ -103,7 +134,7 @@ export const http = {
       if (token) {
         headers.set('Authorization', `Bearer ${token}`);
       }
-
+      
       const response = await fetch(`${BASE_URL}${endpoint}`, {
         method: 'DELETE',
         headers
@@ -117,7 +148,7 @@ export const http = {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error('Network error: Failed to delete data. Please check your internet connection.');
+      throw new Error('Network error: Failed to delete resource. Please check your internet connection.');
     }
   }
 };

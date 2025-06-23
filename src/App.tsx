@@ -1,13 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Box, Toolbar } from '@mui/material';
-import Sidebar from './components/Sidebar';
-import Topbar from "./components/Topbar";
 import Login from './components/Login';
 import Products from './components/Products';
 import Offers from './components/Offers';
 import Brands from './components/Brands';
+import Sidebar from './components/Sidebar';
+import Topbar from './components/Topbar';
 import ProtectedRoute from './components/ProtectedRoute';
+import AuthCheck from './components/AuthCheck';
+import LogoutRoute from './components/LogoutRoute';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { authService } from './services/auth';
@@ -15,88 +17,101 @@ import { authService } from './services/auth';
 const drawerWidth = 232;
 
 function App() {
+  useEffect(() => {
+    // Clear any existing token on initial load
+    authService.clearToken();
+  }, []);
+
   return (
     <Router>
       <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/" element={<Navigate to="/products" replace />} />
+        <LogoutRoute>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<Navigate to="/login" replace />} />
 
           <Route path="/products" element={
-            <ProtectedRoute>
-              <>
-                <Sidebar />
-                <Box sx={{
-                  marginLeft: '210px',
-                }}>
-                  <Topbar />
-                  <Box
-                    component="main"
-                    sx={{
-                      flexGrow: 1,
-                      p: 3,
-                      width: '100%',
-                      transition: 'margin-left 0.3s ease-in-out, width 0.3s ease-in-out'
-                    }}
-                  >
-                    <Toolbar />
-                    <Products />
+            <AuthCheck>
+              <ProtectedRoute>
+                <>
+                  <Sidebar />
+                  <Box sx={{
+                    marginLeft: '210px',
+                  }}>
+                    <Topbar />
+                    <Box
+                      component="main"
+                      sx={{
+                        flexGrow: 1,
+                        p: 3,
+                        width: `calc(100% - ${drawerWidth}px)`,
+                        transition: 'margin-left 0.3s ease-in-out, width 0.3s ease-in-out'
+                      }}
+                    >
+                      <Toolbar />
+                      <Products />
+                    </Box>
                   </Box>
-                </Box>
-              </>
-            </ProtectedRoute>
+                </>
+              </ProtectedRoute>
+            </AuthCheck>
           } />
 
           <Route path="/offers" element={
-            <ProtectedRoute>
-              <>
-                <Sidebar />
-                <Box sx={{
-                  marginLeft: '210px',
-                }}>
-                  <Topbar />
-                  <Box
-                    component="main"
-                    sx={{
-                      flexGrow: 1,
-                      p: 3,
-                      width: '100%',
-                      transition: 'margin-left 0.3s ease-in-out, width 0.3s ease-in-out'
-                    }}
-                  >
-                    <Toolbar />
-                    <Offers />
+            <AuthCheck>
+              <ProtectedRoute>
+                <>
+                  <Sidebar />
+                  <Box sx={{
+                    marginLeft: '210px',
+                  }}>
+                    <Topbar />
+                    <Box
+                      component="main"
+                      sx={{
+                        flexGrow: 1,
+                        p: 3,
+                        width: `calc(100% - ${drawerWidth}px)`,
+                        transition: 'margin-left 0.3s ease-in-out, width 0.3s ease-in-out'
+                      }}
+                    >
+                      <Toolbar />
+                      <Offers />
+                    </Box>
                   </Box>
-                </Box>
-              </>
-            </ProtectedRoute>
+                </>
+              </ProtectedRoute>
+            </AuthCheck>
           } />
 
           <Route path="/brands" element={
-            <ProtectedRoute>
-              <>
-                <Sidebar />
-                <Box sx={{ 
-                  marginLeft: '210px',
-                }}>
-                  <Topbar />
-                  <Box
-                    component="main"
-                    sx={{
-                      flexGrow: 1,
-                      p: 3,
-                      width: '100%',
-                      transition: 'margin-left 0.3s ease-in-out, width 0.3s ease-in-out'
-                    }}
-                  >
-                    <Toolbar />
-                    <Brands />
+            <AuthCheck>
+              <ProtectedRoute>
+                <>
+                  <Sidebar />
+                  <Box sx={{ 
+                    marginLeft: '210px',
+                  }}>
+                    <Topbar />
+                    <Box
+                      component="main"
+                      sx={{
+                        flexGrow: 1,
+                        p: 3,
+                        width: `calc(100% - ${drawerWidth}px)`,
+                        transition: 'margin-left 0.3s ease-in-out, width 0.3s ease-in-out'
+                      }}
+                    >
+                      <Toolbar />
+                      <Brands />
+                    </Box>
                   </Box>
-                </Box>
-              </>
-            </ProtectedRoute>
+                </>
+              </ProtectedRoute>
+            </AuthCheck>
           } />
-        </Routes>
+          </Routes>
+        </LogoutRoute>
         <ToastContainer
           position="top-right"
           autoClose={3000}

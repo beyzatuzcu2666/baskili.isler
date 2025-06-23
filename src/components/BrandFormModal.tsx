@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import http from '../services/http';
 import {
   Dialog,
   DialogTitle,
@@ -17,23 +18,49 @@ interface BrandFormModalProps {
     contactEmail: string;
     contactPhone: string;
   }) => void;
+  initialData?: {
+    name: string;
+    contactEmail: string;
+    contactPhone: string;
+  };
+  title: string;
+  isUpdate?: boolean;
+  brandId?: number;
 }
 
-export const BrandFormModal: React.FC<BrandFormModalProps> = ({ open, onClose, onSubmit }) => {
+export const BrandFormModal: React.FC<BrandFormModalProps> = ({ open, onClose, onSubmit, initialData, title, isUpdate, brandId }) => {
   const [formData, setFormData] = useState({
-    name: '',
-    contactEmail: '',
-    contactPhone: '',
+    name: initialData?.name || '',
+    contactEmail: initialData?.contactEmail || '',
+    contactPhone: initialData?.contactPhone || '',
   });
 
-  const handleSubmit = () => {
-    onSubmit(formData);
-    onClose();
+  React.useEffect(() => {
+    if (initialData) {
+      setFormData({
+        name: initialData.name,
+        contactEmail: initialData.contactEmail,
+        contactPhone: initialData.contactPhone,
+      });
+    }
+  }, [initialData]);
+
+  const handleSubmit = async () => {
+    try {
+      if (isUpdate && brandId) {
+        await http.patch(`/brands/${brandId}`, formData);
+      } else {
+        await onSubmit(formData);
+      }
+      onClose();
+    } catch (error) {
+      console.error('Error submitting form:', error);
+    }
   };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Marka Ekle</DialogTitle>
+      <DialogTitle>{title}</DialogTitle>
       <DialogContent>
         <Box sx={{ mt: 2 }}>
           <TextField

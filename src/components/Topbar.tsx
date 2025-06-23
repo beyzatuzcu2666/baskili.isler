@@ -9,6 +9,9 @@ import {
     MenuItem,
     Avatar,
 } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { authService } from '../services/auth';
+import { http } from '../services/http';
 
 const Topbar = () => {
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -26,8 +29,16 @@ const Topbar = () => {
         handleClose();
     };
 
-    const handleLogout = () => {
-        alert('Çıkış yapılıyor...');
+    const navigate = useNavigate();
+
+    const handleLogout = async () => {
+        try {
+            authService.clearToken();
+            navigate('/login');
+        } catch (error) {
+            console.error('Çıkış yaparken bir hata oluştu:', error);
+            alert('Çıkış yaparken bir hata oluştu. Lütfen tekrar deneyin.');
+        }
         handleClose();
     };
 

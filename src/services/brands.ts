@@ -11,8 +11,7 @@ export const brandsService = {
   async getBrands(): Promise<Brand[]> {
     try {
       const response = await http.get('/brands');
-      // Ensure we return an empty array if data is undefined
-      return response.data || [];
+      return response || [];
     } catch (error) {
       console.error('Error fetching brands:', error);
       throw error;
@@ -25,6 +24,25 @@ export const brandsService = {
       return response.data;
     } catch (error) {
       console.error('Error creating brand:', error);
+      throw error;
+    }
+  },
+
+  async updateBrand(brandId: number, brandData: Omit<Brand, 'id'>): Promise<Brand> {
+    try {
+      const response = await http.put(`/brands/${brandId}`, brandData);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating brand:', error);
+      throw error;
+    }
+  },
+
+  async deleteBrand(brandId: number): Promise<void> {
+    try {
+      await http.delete(`/brands/${brandId}`);
+    } catch (error) {
+      console.error('Error deleting brand:', error);
       throw error;
     }
   }

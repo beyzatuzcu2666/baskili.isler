@@ -1,5 +1,7 @@
 export interface Product {
   id: number;
+  code: string;
   name: string;
-  createdAt: string;
+  unitPrice: number;
+  unit: string;
 }

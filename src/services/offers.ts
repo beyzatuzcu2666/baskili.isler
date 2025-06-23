@@ -1,20 +1,17 @@
-import { http } from './http';
-import { Offer } from '../types/offer';
+import {http} from './http';
+import {Offer} from '../types/offer';
 
 export const offersService = {
   async getAll(): Promise<Offer[]> {
-    const response = await http.get('/offers');
-    return response.data;
+    return await http.get('/quotes');
   },
   async create(offer: Omit<Offer, 'id' | 'createdAt'>): Promise<Offer> {
-    const response = await http.post('/offers', offer);
-    return response.data;
+    return await http.post('/quotes', offer);
   },
   async update(id: number, offer: Partial<Offer>): Promise<Offer> {
-    const response = await http.put(`/offers/${id}`, offer);
-    return response.data;
+    return await http.put(`/quotes/${id}`, offer);
   },
   async delete(id: number): Promise<void> {
-    await http.delete(`/offers/${id}`);
+    await http.delete(`/quotes/${id}`);
   }
 };
