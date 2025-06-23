@@ -1,20 +1,17 @@
 import { authService } from './auth';
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = 'https://baskili-isler-backend.onrender.com';
 
 export const http = {
   async get<T = any>(endpoint: string): Promise<T> {
     try {
-      // Sadece gerekli olan Authorization header'ını kullan
       const headers = new Headers();
+      headers.set('Accept', 'application/json');
       
-      // Token varsa Authorization header'ını ekle
       const token = authService.getToken();
       if (token) {
         headers.set('Authorization', `Bearer ${token}`);
       }
-
-      addTokenToHeaders(headers);
 
       const response = await fetch(`${BASE_URL}${endpoint}`, {
         method: 'GET',
@@ -37,10 +34,10 @@ export const http = {
 
   async post<T = any>(endpoint: string, data: any): Promise<T> {
     try {
-      // Sadece gerekli olan Authorization header'ını kullan
       const headers = new Headers();
+      headers.set('Content-Type', 'application/json');
+      headers.set('Accept', 'application/json');
       
-      // Token varsa Authorization header'ını ekle
       const token = authService.getToken();
       if (token) {
         headers.set('Authorization', `Bearer ${token}`);
@@ -68,10 +65,10 @@ export const http = {
 
   async put<T = any>(endpoint: string, data: any): Promise<T> {
     try {
-      // Sadece gerekli olan Authorization header'ını kullan
       const headers = new Headers();
+      headers.set('Content-Type', 'application/json');
+      headers.set('Accept', 'application/json');
       
-      // Token varsa Authorization header'ını ekle
       const token = authService.getToken();
       if (token) {
         headers.set('Authorization', `Bearer ${token}`);
@@ -99,25 +96,17 @@ export const http = {
 
   async delete(endpoint: string): Promise<void> {
     try {
-      // Sadece gerekli olan Authorization header'ını kullan
       const headers = new Headers();
+      headers.set('Accept', 'application/json');
       
-      // Token varsa Authorization header'ını ekle
       const token = authService.getToken();
       if (token) {
         headers.set('Authorization', `Bearer ${token}`);
       }
-      
-      addTokenToHeaders(headers);
-
-      // Header'ları konsola yazdır
-      console.log('Request Headers:', headers);
 
       const response = await fetch(`${BASE_URL}${endpoint}`, {
         method: 'DELETE',
-        headers,
-        credentials: 'include',
-        mode: 'cors'
+        headers
       });
       
       if (!response.ok) {
@@ -131,24 +120,6 @@ export const http = {
       throw new Error('Network error: Failed to delete data. Please check your internet connection.');
     }
   }
-};
-
-function addTokenToHeaders(headers: Headers) {
-  const token = authService.getToken();
-  if (token) {
-    // Token'ı cookie'ye taşıyoruz
-    document.cookie = `auth_token=${token}; path=/; secure`;
-    
-    // Authorization header'ını kaldırıyoruz
-    // headers.append('Authorization', `Bearer ${token}`);
-    
-    // Cookie'yi kontrol edelim
-    const existingCookie = document.cookie.split(';').find(cookie => cookie.trim().startsWith('auth_token'));
-    if (existingCookie) {
-      console.log('Auth token cookie:', existingCookie);
-    }
-  }
-  return headers;
 };
 
 export default http;
