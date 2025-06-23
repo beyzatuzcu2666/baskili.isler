@@ -1,50 +1,51 @@
 import { http } from './http';
 
+// Store token in localStorage
+const TOKEN_KEY = 'auth_token';
+const COOKIE_NAME = 'auth_token';
+
 export const authService = {
   login: async (email: string, password: string) => {
     try {
-      const response = await fetch('https://baskili-isler-backend.onrender.com/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        mode: 'cors', // CORS modunu açıkça belirtiyoruz
-        credentials: 'include',
-        body: JSON.stringify({
-          email,
-          password
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || 'Unknown error'}`);
-      }
-
-      return await response.json();
+      const response = await http.post('/auth/login', { email, password });
+      return response;
     } catch (error) {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error('Network error: Failed to fetch data. Please check your internet connection.');
+      throw new Error('Giriş başarısız. Lütfen tekrar deneyin.');
     }
   },
 
   getToken: () => {
-    return localStorage.getItem('token');
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      // Cookie'den token'i al
+      const cookie = document.cookie.split(';').find(cookie => cookie.trim().startsWith(COOKIE_NAME));
+      if (cookie) {
+        const tokenFromCookie = cookie.split('=')[1];
+        localStorage.setItem(TOKEN_KEY, tokenFromCookie);
+        return tokenFromCookie;
+      }
+    }
+    return token;
   },
 
   setToken: (token: string) => {
-    localStorage.setItem('token', token);
+    localStorage.setItem(TOKEN_KEY, token);
+  },
+
+  clearToken: () => {
+    localStorage.removeItem(TOKEN_KEY);
   },
 
   logout: () => {
-    localStorage.removeItem('token');
+    authService.clearToken();
   },
 
   isAuthenticated: () => {
-    const token = localStorage.getItem('token');
+    const token = authService.getToken();
     return !!token;
   }
+  
 };

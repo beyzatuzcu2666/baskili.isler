@@ -1,17 +1,18 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Sidebar from './components/Sidebar';
-import Brands from './pages/Brands';
-import Employees from './pages/Employees';
 import { Box, Toolbar } from '@mui/material';
+import Sidebar from './components/Sidebar';
 import Topbar from "./components/Topbar";
-import Orders from "./pages/Orders";
 import Login from './components/Login';
-import { authService } from './services/auth';
+import Products from './components/Products';
+import Offers from './components/Offers';
+import Brands from './components/Brands';
+import ProtectedRoute from './components/ProtectedRoute';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { authService } from './services/auth';
 
-const drawerWidth = 240;
+const drawerWidth = 232;
 
 function App() {
   return (
@@ -19,23 +20,73 @@ function App() {
       <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route 
-            path="/" 
-            element={authService.isAuthenticated() ? <Navigate to="/brands" /> : <Navigate to="/login" />}
-          />
-          <Route 
-            path="/brands" 
-            element={authService.isAuthenticated() ? (
+          <Route path="/" element={<Navigate to="/products" replace />} />
+
+          <Route path="/products" element={
+            <ProtectedRoute>
               <>
                 <Sidebar />
-                <Box sx={{ flexGrow: 1 }}>
+                <Box sx={{
+                  marginLeft: '210px',
+                }}>
                   <Topbar />
                   <Box
                     component="main"
                     sx={{
                       flexGrow: 1,
                       p: 3,
-                      width: `calc(100% - ${drawerWidth}px)`,
+                      width: '100%',
+                      transition: 'margin-left 0.3s ease-in-out, width 0.3s ease-in-out'
+                    }}
+                  >
+                    <Toolbar />
+                    <Products />
+                  </Box>
+                </Box>
+              </>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/offers" element={
+            <ProtectedRoute>
+              <>
+                <Sidebar />
+                <Box sx={{
+                  marginLeft: '210px',
+                }}>
+                  <Topbar />
+                  <Box
+                    component="main"
+                    sx={{
+                      flexGrow: 1,
+                      p: 3,
+                      width: '100%',
+                      transition: 'margin-left 0.3s ease-in-out, width 0.3s ease-in-out'
+                    }}
+                  >
+                    <Toolbar />
+                    <Offers />
+                  </Box>
+                </Box>
+              </>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/brands" element={
+            <ProtectedRoute>
+              <>
+                <Sidebar />
+                <Box sx={{ 
+                  marginLeft: '210px',
+                }}>
+                  <Topbar />
+                  <Box
+                    component="main"
+                    sx={{
+                      flexGrow: 1,
+                      p: 3,
+                      width: '100%',
+                      transition: 'margin-left 0.3s ease-in-out, width 0.3s ease-in-out'
                     }}
                   >
                     <Toolbar />
@@ -43,52 +94,8 @@ function App() {
                   </Box>
                 </Box>
               </>
-            ) : <Navigate to="/login" />}
-          />
-          <Route 
-            path="/orders" 
-            element={authService.isAuthenticated() ? (
-              <>
-                <Sidebar />
-                <Box sx={{ flexGrow: 1 }}>
-                  <Topbar />
-                  <Box
-                    component="main"
-                    sx={{
-                      flexGrow: 1,
-                      p: 3,
-                      width: `calc(100% - ${drawerWidth}px)`,
-                    }}
-                  >
-                    <Toolbar />
-                    <Orders />
-                  </Box>
-                </Box>
-              </>
-            ) : <Navigate to="/login" />}
-          />
-          <Route 
-            path="/employees" 
-            element={authService.isAuthenticated() ? (
-              <>
-                <Sidebar />
-                <Box sx={{ flexGrow: 1 }}>
-                  <Topbar />
-                  <Box
-                    component="main"
-                    sx={{
-                      flexGrow: 1,
-                      p: 3,
-                      width: `calc(100% - ${drawerWidth}px)`,
-                    }}
-                  >
-                    <Toolbar />
-                    <Employees />
-                  </Box>
-                </Box>
-              </>
-            ) : <Navigate to="/login" />}
-          />
+            </ProtectedRoute>
+          } />
         </Routes>
         <ToastContainer
           position="top-right"

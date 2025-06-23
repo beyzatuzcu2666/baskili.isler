@@ -49,15 +49,16 @@ const Brands: React.FC = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>ID</TableCell>
               <TableCell>Marka Adı</TableCell>
+              <TableCell>Telefon No</TableCell>
+              <TableCell>E mail</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {brands.map((brand) => (
               <TableRow key={brand.id}>
-                <TableCell>{brand.id}</TableCell>
-                <TableCell>{brand.name}</TableCell>
+                <TableCell>{brand.contactPhone}</TableCell>
+                <TableCell>{brand.contactEmail}</TableCell>
               </TableRow>
             ))}
           </TableBody>
