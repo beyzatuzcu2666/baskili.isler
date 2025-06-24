@@ -33,7 +33,6 @@ import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 
 const Offers = () => {
   const [offers, setOffers] = useState<Offer[]>([]);
-  const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<Offer | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
@@ -42,7 +41,7 @@ const Offers = () => {
   const [convertingToOrder, setConvertingToOrder] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteQuoteId, setDeleteQuoteId] = useState<string | null>(null);
-  
+
 
   const handleDetailsClick = (offer: Offer) => {
     setSelectedQuote(offer);
@@ -56,7 +55,7 @@ const Offers = () => {
 
   const convertToOrder = async () => {
     if (!selectedQuote) return;
-    
+
     try {
       setConvertingToOrder(true);
       // TODO: Implement the actual conversion logic here
@@ -64,7 +63,7 @@ const Offers = () => {
       // 1. Creating a new order with the quote's items
       // 2. Updating the quote status
       // 3. Showing a success message
-      
+
       // For now, just close the drawer and show a message
       setDrawerOpen(false);
       // You can add a toast or alert here to show success
@@ -93,13 +92,10 @@ const Offers = () => {
 
   const loadOffers = async () => {
     try {
-      setLoading(true);
       const data = await offersService.getAll();
       setOffers(data);
     } catch (error) {
       console.error('Error loading offers:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -207,130 +203,56 @@ const Offers = () => {
       </Box>
 
       <TableContainer component={Paper}>
-        {loading ? (
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            minHeight: '200px'
-          }}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Marka Adı</TableCell>
-                <TableCell>Durum</TableCell>
-                <TableCell>Geçerlilik Tarihi</TableCell>
-                <TableCell>İşlemler</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {offers.map((offer) => (
-                <TableRow key={offer.id}>
-                  <TableCell>{offer.brandName}</TableCell>
-                  <TableCell>{offer.status}</TableCell>
-                  <TableCell>{offer.validUntil}</TableCell>
-                  <TableCell>
-                    <Button
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Marka Adı</TableCell>
+              <TableCell>Durum</TableCell>
+              <TableCell>Geçerlilik Tarihi</TableCell>
+              <TableCell>İşlemler</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {offers.map((offer) => (
+              <TableRow key={offer.id}>
+                <TableCell>{offer.brandName}</TableCell>
+                <TableCell>{offer.status}</TableCell>
+                <TableCell>{offer.validUntil}</TableCell>
+                <TableCell>
+                  <IconButton onClick={() => handleEdit(offer)}>
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton onClick={() => handleDeleteClick(offer.id.toString())}>
+                    <DeleteIcon />
+                  </IconButton>
+                  <Button
                       onClick={() => handleDetailsClick(offer)}
                       variant="outlined"
                       startIcon={<ShoppingCartIcon />}
-                    >
-                      Detaylar
-                    </Button>
-                    <IconButton onClick={() => handleEdit(offer)}>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton onClick={() => handleDeleteClick(offer.id.toString())}>
-                      <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+                  >
+                    Detaylar
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </TableContainer>
 
 
 
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-        PaperProps={{
-          sx: {
-            bgcolor: '#fff',
-            borderRadius: 2,
-            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-          }
-        }}
-      >
-        <DialogContent
-          sx={{
-            p: 4
-          }}
-        >
-          <Typography
-            variant="h6"
-            component="div"
-            sx={{
-              mb: 2,
-              fontSize: '1.2rem',
-              fontWeight: 'bold',
-              color: '#ef5350'
-            }}
-          >
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>Silme Onayı</DialogTitle>
+        <DialogContent>
+          <Typography variant="h6" color="error" align="center">
             Bu teklifi silmek istediğinizden emin misiniz?
           </Typography>
-          <Typography
-            variant="body1"
-            sx={{
-              color: '#ef5350',
-              mb: 2
-            }}
-          >
-            Bu işlem geri alınamaz. Teklif ve tüm ilgili bilgiler silinecektir.
-          </Typography>
         </DialogContent>
-        <DialogActions
-          sx={{
-            bgcolor: '#f5c6cb',
-            p: 2,
-            justifyContent: 'center',
-            gap: 2
-          }}
-        >
-          <Button
-            onClick={() => setDeleteDialogOpen(false)}
-            variant="outlined"
-            color="primary"
-            sx={{
-              bgcolor: '#fff',
-              color: '#721c24',
-              '&:hover': {
-                bgcolor: '#fff',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }
-            }}
-          >
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} color="primary">
             İptal
           </Button>
-          <Button
-            onClick={handleConfirmDelete}
-            variant="contained"
-            color="error"
-            sx={{
-              bgcolor: '#dc3545',
-              '&:hover': {
-                bgcolor: '#c82333'
-              },
-              px: 4,
-              fontSize: '1rem',
-              fontWeight: 'bold'
-            }}
-          >
+          <Button onClick={handleConfirmDelete} color="error" variant="contained">
             Sil
           </Button>
         </DialogActions>
