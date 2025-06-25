@@ -90,9 +90,9 @@ const Offers = () => {
         return sum + (quantity * price);
       }, 0);
 
-      const offer = await offersService.create({
+      const payload = {
         brandName: newBrandName,
-        status: 'OFFER_SENT',
+        status: 'OFFER_SENT' as const,
         totalPrice: total,
         validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
         items: formItems.map(item => ({
@@ -102,7 +102,11 @@ const Offers = () => {
           productName: products.find(p => p.id === parseInt(item.productId))?.name || '',
           lineTotal: parseFloat(item.price) * parseInt(item.quantity)
         }))
-      });
+      };
+
+      console.log('Creating offer with payload:', payload);
+
+      const offer = await offersService.create(payload);
       setOffers(prev => [...prev, offer]);
       resetDialog();
     } catch (error) {
