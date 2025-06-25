@@ -272,19 +272,34 @@ const Offers = () => {
               <InputLabel id="brand-select-label">Marka</InputLabel>
               <Select
                 labelId="brand-select-label"
-                id="brand-select"
                 value={newBrandName}
-                label="Marka"
-                onChange={(e) => setNewBrandName(e.target.value)}
-                autoFocus
+                onChange={(e: SelectChangeEvent) => setNewBrandName(e.target.value)}
                 disabled={loadingBrands}
               >
+                <MenuItem value="">Seçiniz</MenuItem>
                 {brands.map((brand) => (
                   <MenuItem key={brand.id} value={brand.name}>
                     {brand.name}
                   </MenuItem>
                 ))}
               </Select>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                <IconButton
+                  size="medium"
+                  sx={{
+                    bgcolor: 'primary.main',
+                    color: 'white',
+                    borderRadius: '50%',
+                    width: 40,
+                    height: 40,
+                    '&:hover': {
+                      bgcolor: 'primary.dark'
+                    }
+                  }}
+                >
+                  +
+                </IconButton>
+              </Box>
             </FormControl>
             <Box sx={{ display: 'flex', gap: 2 }}>
               <FormControl sx={{ flex: 1 }}>
