@@ -90,8 +90,9 @@ const Offers = () => {
         return sum + (quantity * price);
       }, 0);
 
+      const selectedBrand = brands.find(brand => brand.name === newBrandName);
       const payload = {
-        brandName: newBrandName,
+        brandId: selectedBrand?.id || 0,
         status: 'OFFER_SENT' as const,
         totalPrice: total,
         validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
@@ -168,7 +169,8 @@ const Offers = () => {
 
   const handleEdit = (offer: Offer) => {
     setSelectedOffer(offer);
-    setNewBrandName(offer.brandName);
+    const brand = brands.find(b => b.id === offer.brandId);
+    setNewBrandName(brand?.name || '');
     setOpenDialog(true);
   };
 
@@ -176,7 +178,7 @@ const Offers = () => {
     if (!selectedOffer) return;
 
     try {
-      const updatedOffer = await offersService.update(selectedOffer.id, { brandName: newBrandName });
+      const updatedOffer = await offersService.update(selectedOffer.id, { brandId: parseInt(newBrandName) });
       setOffers(offers.map(o => o.id === selectedOffer.id ? updatedOffer : o));
       resetDialog();
       setOpenDialog(false);
@@ -434,7 +436,7 @@ const Offers = () => {
         <Typography variant="h6" gutterBottom>Teklif Detayları</Typography>
         <Divider sx={{ mb: 2 }} />
         <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle1">Marka Adı: <strong>{selectedQuote?.brandName}</strong></Typography>
+          <Typography variant="subtitle1">Marka Adı: <strong>{brands.find(b => b.id === selectedQuote?.brandId)?.name || ''}</strong></Typography>
         </Box>
         {selectedQuote?.items && (
           <TableContainer>

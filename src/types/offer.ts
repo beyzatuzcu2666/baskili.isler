@@ -1,6 +1,7 @@
 export interface Offer {
   id: number;
-  brandName: string;
+  brandId: number;
+  brandName?: string;
   createdAt: string;
   status: 'OFFER_SENT' | 'OFFER_ACCEPTED' | 'OFFER_REJECTED';
   totalPrice: number;
