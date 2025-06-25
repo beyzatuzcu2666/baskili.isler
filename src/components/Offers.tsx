@@ -397,7 +397,7 @@ const Offers = () => {
           <Button 
             variant="contained" 
             onClick={selectedOffer ? handleUpdateOffer : handleCreate}
-            disabled={!newBrandName.trim() || !selectedProduct || !quantity || !price}
+            disabled={!newBrandName.trim() || formItems.length === 0 || formItems.some(item => !item.productId || !item.quantity || !item.price)}
           >
             {selectedOffer ? 'Güncelle' : 'Teklifi Oluştur'}
           </Button>
