@@ -25,7 +25,8 @@ import {
   InputLabel,
   SelectChangeEvent
 } from '@mui/material';
-import {
+import { Snackbar, Alert } from '@mui/material';
+import { 
   ArrowForward as ArrowForwardIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
@@ -63,6 +64,9 @@ const Offers = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteQuoteId, setDeleteQuoteId] = useState<string | null>(null);
   const [formItems, setFormItems] = useState<FormItem[]>([{ productId: '0', quantity: '', price: '' }]);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
 
   const addFormItem = () => {
     setFormItems(prev => [...prev, { productId: '0', quantity: '', price: '' }]);
@@ -110,8 +114,16 @@ const Offers = () => {
       const offer = await offersService.create(payload);
       setOffers(prev => [...prev, offer]);
       resetDialog();
-    } catch (error) {
+      setOpenDialog(false);
+      setSnackbarMessage('Teklif başarıyla oluşturuldu!');
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
+    } catch (error: any) {
       console.error('Error creating offer:', error);
+      setSnackbarMessage(error.response?.data?.message || 'Teklif oluşturulurken bir hata oluştu!');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+      setOpenDialog(false);
     }
   };
 
