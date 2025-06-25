@@ -38,6 +38,12 @@ import { Brand } from '../types/brand';
 import { productsService } from '../services/products';
 import { Product } from '../types/product';
 
+interface FormItem {
+  productId: string;
+  quantity: string;
+  price: string;
+}
+
 const Offers = () => {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +62,53 @@ const Offers = () => {
   const [convertingToOrder, setConvertingToOrder] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteQuoteId, setDeleteQuoteId] = useState<string | null>(null);
+  const [formItems, setFormItems] = useState<FormItem[]>([{ productId: '0', quantity: '', price: '' }]);
+
+  const addFormItem = () => {
+    setFormItems(prev => [...prev, { productId: '0', quantity: '', price: '' }]);
+  };
+
+  const removeFormItem = (index: number) => {
+    setFormItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateFormItem = (index: number, field: keyof FormItem, value: string) => {
+    setFormItems(prev => {
+      const newItems = [...prev];
+      newItems[index] = { ...newItems[index], [field]: value };
+      return newItems;
+    });
+  };
+
+  const handleCreate = async () => {
+    if (!newBrandName.trim() || formItems.length === 0) return;
+
+    try {
+      const total = formItems.reduce((sum, item) => {
+        const quantity = parseInt(item.quantity);
+        const price = parseFloat(item.price);
+        return sum + (quantity * price);
+      }, 0);
+
+      const offer = await offersService.create({
+        brandName: newBrandName,
+        status: 'OFFER_SENT',
+        totalPrice: total,
+        validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+        items: formItems.map(item => ({
+          productId: parseInt(item.productId),
+          quantity: parseInt(item.quantity),
+          unitPrice: parseFloat(item.price),
+          productName: products.find(p => p.id === parseInt(item.productId))?.name || '',
+          lineTotal: parseFloat(item.price) * parseInt(item.quantity)
+        }))
+      });
+      setOffers(prev => [...prev, offer]);
+      resetDialog();
+    } catch (error) {
+      console.error('Error creating offer:', error);
+    }
+  };
 
   useEffect(() => {
     loadOffers();
@@ -107,32 +160,7 @@ const Offers = () => {
     setPrice('');
   };
 
-  const handleCreate = async () => {
-    if (!newBrandName.trim() || !selectedProduct || !quantity || !price) return;
 
-    try {
-      const offer = await offersService.create({
-        brandName: newBrandName,
-        status: 'OFFER_SENT',
-        totalPrice: parseFloat(price) * parseInt(quantity),
-        validUntil: new Date().toISOString(),
-        items: [
-          {
-            productId: selectedProduct.id,
-            productName: selectedProduct.name,
-            quantity: parseInt(quantity),
-            unitPrice: parseFloat(price),
-            lineTotal: parseFloat(price) * parseInt(quantity)
-          }
-        ]
-      });
-      setOffers([...offers, offer]);
-      resetDialog();
-      setOpenDialog(false);
-    } catch (error) {
-      console.error('Error creating offer:', error);
-    }
-  };
 
   const handleEdit = (offer: Offer) => {
     setSelectedOffer(offer);
@@ -285,6 +313,7 @@ const Offers = () => {
               </Select>
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
                 <IconButton
+                  onClick={addFormItem}
                   size="medium"
                   sx={{
                     bgcolor: 'primary.main',
@@ -301,45 +330,62 @@ const Offers = () => {
                 </IconButton>
               </Box>
             </FormControl>
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <FormControl sx={{ flex: 1 }}>
-                <InputLabel id="product-select-label">Ürün</InputLabel>
-                <Select
-                  labelId="product-select-label"
-                  id="product-select"
-                  value={selectedProduct?.id.toString() || '0'}
-                  label="Ürün"
-                  onChange={(e) => {
-                    const productId = parseInt(e.target.value);
-                    const product = products.find(p => p.id === productId);
-                    setSelectedProduct(product || null);
-                  }}
-                  disabled={loadingProducts}
-                >
-                  <MenuItem value="0">Seçiniz</MenuItem>
-                  {products.map((product) => (
-                    <MenuItem key={product.id} value={product.id}>
-                      {product.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <TextField
-                sx={{ flex: 1 }}
-                label="Adet"
-                type="number"
-                value={quantity}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuantity(e.target.value)}
-                InputProps={{ inputProps: { min: 0 } }}
-              />
-              <TextField
-                sx={{ flex: 1 }}
-                label="Fiyat"
-                type="number"
-                value={price}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPrice(e.target.value)}
-                InputProps={{ inputProps: { min: 0 } }}
-              />
+            <Box>
+              {formItems.map((item, index) => (
+                <Box key={index} sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                  <FormControl sx={{ flex: 1 }}>
+                    <InputLabel id={`product-select-label-${index}`}>Ürün</InputLabel>
+                    <Select
+                      labelId={`product-select-label-${index}`}
+                      id={`product-select-${index}`}
+                      value={item.productId}
+                      label="Ürün"
+                      onChange={(e) => updateFormItem(index, 'productId', e.target.value)}
+                      disabled={loadingProducts}
+                    >
+                      <MenuItem value="0">Seçiniz</MenuItem>
+                      {products.map((product) => (
+                        <MenuItem key={product.id} value={product.id}>
+                          {product.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    sx={{ flex: 1 }}
+                    label="Adet"
+                    type="number"
+                    value={item.quantity}
+                    onChange={(e) => updateFormItem(index, 'quantity', e.target.value)}
+                    InputProps={{ inputProps: { min: 0 } }}
+                  />
+                  <TextField
+                    sx={{ flex: 1 }}
+                    label="Fiyat"
+                    type="number"
+                    value={item.price}
+                    onChange={(e) => updateFormItem(index, 'price', e.target.value)}
+                    InputProps={{ inputProps: { min: 0 } }}
+                  />
+                  {index > 0 && (
+                    <IconButton
+                      onClick={() => removeFormItem(index)}
+                      sx={{
+                        bgcolor: 'error.main',
+                        color: 'white',
+                        borderRadius: '50%',
+                        width: 32,
+                        height: 32,
+                        '&:hover': {
+                          bgcolor: 'error.dark'
+                        }
+                      }}
+                    >
+                      -
+                    </IconButton>
+                  )}
+                </Box>
+              ))}
             </Box>
           </Box>
         </DialogContent>
