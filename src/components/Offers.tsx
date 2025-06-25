@@ -167,53 +167,63 @@ const Offers = () => {
     }
   };
 
+// Kodun üst kısmı aynı, yalnızca return içeriği aşağıda güncellendi
   return (
-    <Box sx={{ p: 3 }}>
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
-          <CircularProgress />
+      <Box sx={{ p: 3 }}>
+        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between' }}>
+          <Typography variant="h5">Teklifler</Typography>
+          <Button variant="contained" onClick={() => {
+            setSelectedOffer(null);
+            setNewBrandName('');
+            setOpenDialog(true);
+          }}>Yeni Teklif Ekle</Button>
         </Box>
-      ) : (
-        <>
-          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between' }}>
-            <Typography variant="h5">Teklifler</Typography>
-            <Button variant="contained" onClick={() => {
-              setSelectedOffer(null);
-              setNewBrandName('');
-              setOpenDialog(true);
-            }}>Yeni Teklif Ekle</Button>
-          </Box>
 
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Marka Adı</TableCell>
-                  <TableCell>Durum</TableCell>
-                  <TableCell>Geçerlilik Tarihi</TableCell>
-                  <TableCell>İşlemler</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {offers.map((offer) => (
-                  <TableRow key={offer.id}>
-                    <TableCell>{offer.brandName}</TableCell>
-                    <TableCell>{offer.status}</TableCell>
-                    <TableCell>{offer.validUntil}</TableCell>
-                    <TableCell>
-                      <IconButton onClick={() => handleEdit(offer)}><EditIcon /></IconButton>
-                      <IconButton onClick={() => handleDeleteClick(offer.id.toString())}><DeleteIcon /></IconButton>
-                      <Button onClick={() => handleDetailsClick(offer)} variant="outlined" startIcon={<ShoppingCartIcon />}>Detaylar</Button>
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Marka Adı</TableCell>
+                <TableCell>Durum</TableCell>
+                <TableCell>Geçerlilik Tarihi</TableCell>
+                <TableCell>İşlemler</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={4} align="center">
+                      <Box sx={{ py: 4 }}>
+                        <CircularProgress />
+                      </Box>
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+              ) : (
+                  offers.map((offer) => (
+                      <TableRow key={offer.id}>
+                        <TableCell>{offer.brandName}</TableCell>
+                        <TableCell>{offer.status}</TableCell>
+                        <TableCell>{offer.validUntil}</TableCell>
+                        <TableCell>
+                          <IconButton onClick={() => handleEdit(offer)}><EditIcon /></IconButton>
+                          <IconButton onClick={() => handleDeleteClick(offer.id.toString())}><DeleteIcon /></IconButton>
+                          <Button onClick={() => handleDetailsClick(offer)} variant="outlined" startIcon={<ShoppingCartIcon />}>Detaylar</Button>
+                        </TableCell>
+                      </TableRow>
+                  ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
 
-          <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
-            <DialogTitle>{selectedOffer ? 'Teklifi Düzenle' : 'Yeni Teklif'}</DialogTitle>
-            <DialogContent>
+        {/* Ekle / Güncelle Dialog */}
+        <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
+          <DialogTitle>{selectedOffer ? 'Teklifi Düzenle' : 'Yeni Teklif Ekle'}</DialogTitle>
+          <DialogContent>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 1 }}>
+                {selectedOffer ? 'Mevcut teklif bilgilerini düzenleyin' : 'Yeni teklif oluşturmak için marka adını girin'}
+              </Typography>
               <TextField
                 autoFocus
                 margin="dense"
@@ -221,76 +231,87 @@ const Offers = () => {
                 fullWidth
                 value={newBrandName}
                 onChange={(e) => setNewBrandName(e.target.value)}
+                helperText="Marka adını girerek yeni bir teklif oluşturabilirsiniz"
+                variant="outlined"
               />
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setOpenDialog(false)}>İptal</Button>
-              <Button variant="contained" onClick={selectedOffer ? handleUpdateOffer : handleCreate}>
-                {selectedOffer ? 'Güncelle' : 'Ekle'}
-              </Button>
-            </DialogActions>
-          </Dialog>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpenDialog(false)}>İptal</Button>
+            <Button 
+              variant="contained" 
+              onClick={selectedOffer ? handleUpdateOffer : handleCreate}
+              disabled={!newBrandName.trim()}
+            >
+              {selectedOffer ? 'Güncelle' : 'Teklifi Oluştur'}
+            </Button>
+          </DialogActions>
+        </Dialog>
 
-          <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-            <DialogTitle>Silme Onayı</DialogTitle>
-            <DialogContent>
-              <Typography variant="h6" color="error" align="center">
-                Bu teklifi silmek istediğinizden emin misiniz?
-              </Typography>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setDeleteDialogOpen(false)}>İptal</Button>
-              <Button onClick={handleConfirmDelete} color="error" variant="contained">Sil</Button>
-            </DialogActions>
-          </Dialog>
+        {/* Silme Onayı */}
+        <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+          <DialogTitle>Silme Onayı</DialogTitle>
+          <DialogContent>
+            <Typography variant="h6" color="error" align="center">
+              Silmek istediğinizden emin misiniz?
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDeleteDialogOpen(false)}>İptal</Button>
+            <Button variant="contained" color="error" onClick={handleConfirmDelete}>
+              Sil
+            </Button>
+          </DialogActions>
+        </Dialog>
 
-          <Drawer
+        {/* Drawer */}
+        <Drawer
             anchor="bottom"
             open={drawerOpen}
             onClose={() => setDrawerOpen(false)}
             sx={{ '& .MuiDrawer-paper': { width: '500px', height: '90vh', borderRadius: '16px 16px 0 0', border: '1px solid', borderColor: 'divider', p: 2 } }}
-          >
-            <Typography variant="h6" gutterBottom>Teklif Detayları</Typography>
-            <Divider sx={{ mb: 2 }} />
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle1">Marka Adı: <strong>{selectedQuote?.brandName}</strong></Typography>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Ürün</TableCell>
-                    <TableCell>Adet</TableCell>
-                    <TableCell>Birim Fiyat</TableCell>
-                    <TableCell>Toplam</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {selectedQuote?.items.map(item => (
-                    <TableRow key={item.productId}>
-                      <TableCell>{item.productName}</TableCell>
-                      <TableCell>{item.quantity}</TableCell>
-                      <TableCell>{item.unitPrice} ₺</TableCell>
-                      <TableCell>{item.lineTotal} ₺</TableCell>
+        >
+          <Typography variant="h6" gutterBottom>Teklif Detayları</Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle1">Marka Adı: <strong>{selectedQuote?.brandName}</strong></Typography>
+          </Box>
+          {selectedQuote?.items && (
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Ürün</TableCell>
+                      <TableCell>Adet</TableCell>
+                      <TableCell>Birim Fiyat</TableCell>
+                      <TableCell>Toplam</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <Box sx={{ mt: 3, textAlign: 'right' }}>
-              <Button
+                  </TableHead>
+                  <TableBody>
+                    {selectedQuote.items.map(item => (
+                        <TableRow key={item.productId}>
+                          <TableCell>{item.productName}</TableCell>
+                          <TableCell>{item.quantity}</TableCell>
+                          <TableCell>{item.unitPrice} ₺</TableCell>
+                          <TableCell>{item.lineTotal} ₺</TableCell>
+                        </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+          )}
+          <Box sx={{ mt: 3, textAlign: 'right' }}>
+            <Button
                 onClick={convertToOrder}
                 variant="contained"
                 startIcon={convertingToOrder ? <CircularProgress size={20} /> : <ArrowForwardIcon />}
                 disabled={convertingToOrder}
-              >
-                {convertingToOrder ? 'Siparişe Dönüştürülüyor...' : 'Siparişe Dönüştür'}
-              </Button>
-            </Box>
-          </Drawer>
-        </>
-      )}
-    </Box>
+            >
+              {convertingToOrder ? 'Siparişe Dönüştürülüyor...' : 'Siparişe Dönüştür'}
+            </Button>
+          </Box>
+        </Drawer>
+      </Box>
   );
 };
 
