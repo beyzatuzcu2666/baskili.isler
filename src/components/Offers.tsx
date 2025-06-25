@@ -21,7 +21,11 @@ import {
   Divider,
   Typography,
   CircularProgress,
-  IconButton
+  IconButton,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import {
   ArrowForward as ArrowForwardIcon,
@@ -32,6 +36,8 @@ import {
 } from '@mui/icons-material';
 import { Offer } from '../types/offer';
 import { offersService } from '../services/offers';
+import { brandsService } from '../services/brands';
+import { Brand } from '../types/brand';
 
 const Offers = () => {
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -40,6 +46,8 @@ const Offers = () => {
   const [selectedQuote, setSelectedQuote] = useState<Offer | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [newBrandName, setNewBrandName] = useState('');
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [loadingBrands, setLoadingBrands] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [convertingToOrder, setConvertingToOrder] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -47,6 +55,7 @@ const Offers = () => {
 
   useEffect(() => {
     loadOffers();
+    loadBrands();
   }, []);
 
   const loadOffers = async () => {
@@ -58,6 +67,18 @@ const Offers = () => {
       console.error('Error loading offers:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadBrands = async () => {
+    try {
+      setLoadingBrands(true);
+      const data = await brandsService.getBrands();
+      setBrands(data);
+    } catch (error) {
+      console.error('Error loading brands:', error);
+    } finally {
+      setLoadingBrands(false);
     }
   };
 
@@ -217,23 +238,42 @@ const Offers = () => {
         </TableContainer>
 
         {/* Ekle / Güncelle Dialog */}
-        <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
+        <Dialog 
+          open={openDialog} 
+          onClose={() => setOpenDialog(false)}
+          sx={{
+            '& .MuiDialog-paper': {
+              width: '600px',
+              maxWidth: '90vw',
+              minHeight: '400px',
+              height: '60vh',
+              maxHeight: '90vh',
+              overflow: 'auto'
+            }
+          }}
+        >
           <DialogTitle>{selectedOffer ? 'Teklifi Düzenle' : 'Yeni Teklif Ekle'}</DialogTitle>
           <DialogContent>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 1 }}>
-                {selectedOffer ? 'Mevcut teklif bilgilerini düzenleyin' : 'Yeni teklif oluşturmak için marka adını girin'}
-              </Typography>
-              <TextField
-                autoFocus
-                margin="dense"
-                label="Marka Adı"
-                fullWidth
-                value={newBrandName}
-                onChange={(e) => setNewBrandName(e.target.value)}
-                helperText="Marka adını girerek yeni bir teklif oluşturabilirsiniz"
-                variant="outlined"
-              />
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ height: 20 }} />  {/* Başlık ile selectbox arasında boşluk */}
+              <FormControl fullWidth>
+                <InputLabel id="brand-select-label">Marka</InputLabel>
+                <Select
+                  labelId="brand-select-label"
+                  id="brand-select"
+                  value={newBrandName}
+                  label="Marka"
+                  onChange={(e) => setNewBrandName(e.target.value)}
+                  autoFocus
+                  disabled={loadingBrands}
+                >
+                  {brands.map((brand) => (
+                    <MenuItem key={brand.id} value={brand.name}>
+                      {brand.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Box>
           </DialogContent>
           <DialogActions>
