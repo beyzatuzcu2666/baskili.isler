@@ -292,7 +292,7 @@ const Offers = () => {
                 <Select
                   labelId="product-select-label"
                   id="product-select"
-                  value={selectedProduct?.id.toString() || ''}
+                  value={selectedProduct?.id.toString() || '0'}
                   label="Ürün"
                   onChange={(e) => {
                     const productId = parseInt(e.target.value);
@@ -301,6 +301,7 @@ const Offers = () => {
                   }}
                   disabled={loadingProducts}
                 >
+                  <MenuItem value="0">Seçiniz</MenuItem>
                   {products.map((product) => (
                     <MenuItem key={product.id} value={product.id}>
                       {product.name}
