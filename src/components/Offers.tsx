@@ -448,7 +448,7 @@ const Offers = () => {
         <Typography variant="h6" gutterBottom>Teklif Detayları</Typography>
         <Divider sx={{ mb: 2 }} />
         <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle1">Marka Adı: <strong>{brands.find(b => b.id === selectedQuote?.brandId)?.name || ''}</strong></Typography>
+          <Typography variant="subtitle1">Marka Adı: <strong>{selectedQuote?.brandName || 'Yükleniyor...'}</strong></Typography>
         </Box>
         {selectedQuote?.items && (
           <TableContainer>
