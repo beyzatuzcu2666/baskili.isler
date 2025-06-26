@@ -1,34 +1,44 @@
 import { Order } from '../types/order';
 import { authService } from './auth';
+import { http } from './http';
 
 const BASE_URL = 'https://baskili-isler-backend.onrender.com/orders';
 
 export const ordersService = {
   getAll: async (): Promise<Order[]> => {
-    const token = authService.getToken();
-    if (!token) throw new Error('Yetkilendirme hatası');
-
-    const response = await fetch(BASE_URL, {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      }
-    });
-    if (!response.ok) throw new Error('Siparişler yüklenemedi');
-    return response.json();
+    return await http.get(BASE_URL);
   },
 
   delete: async (id: string): Promise<void> => {
-    const token = authService.getToken();
-    if (!token) throw new Error('Yetkilendirme hatası');
+    await http.delete(`${BASE_URL}/${id}`);
+  },
 
-    const response = await fetch(`${BASE_URL}/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
+  acceptOffer: async (offerId: string): Promise<void> => {
+    console.log('Accepting offer:', offerId);
+    try {
+      const response = await fetch(`${BASE_URL}/${offerId}/accept`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Response status:', response.status);
+        console.error('Response headers:', response.headers);
+        console.error('Response body:', errorData);
+        throw new Error(
+          errorData.message || 
+          `HTTP ${response.status}: ${response.statusText} - Sipariş kabul edilemedi`
+        );
       }
-    });
-    if (!response.ok) throw new Error('Sipariş silinemedi');
+      console.log('Offer accepted successfully');
+    } catch (error: any) {
+      console.error('Error accepting offer:', error);
+      console.error('Error message:', error.message);
+      throw error;
+    }
   }
 };

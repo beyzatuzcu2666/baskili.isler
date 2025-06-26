@@ -39,6 +39,7 @@ import { brandsService } from '../services/brands';
 import { Brand } from '../types/brand';
 import { productsService } from '../services/products';
 import { Product } from '../types/product';
+import { ordersService } from '../services/orders';
 
 interface FormItem {
   productId: string;
@@ -253,11 +254,18 @@ const Offers = () => {
     if (!selectedQuote) return;
     try {
       setConvertingToOrder(true);
+      console.log('Converting offer:', selectedQuote.id);
+      await ordersService.acceptOffer(selectedQuote.id.toString());
       setDrawerOpen(false);
-      // Simülasyon
-      await new Promise((r) => setTimeout(r, 1000));
-    } catch (error) {
+      setSnackbarMessage('Sipariş başarıyla oluşturuldu!');
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
+      await loadOffers();
+    } catch (error: any) {
       console.error('Error converting to order:', error);
+      setSnackbarMessage(error.message || 'Sipariş oluşturulurken bir hata oluştu!');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
     } finally {
       setConvertingToOrder(false);
     }
