@@ -5,6 +5,7 @@ import Login from './components/Login';
 import Products from './components/Products';
 import Offers from './components/Offers';
 import Brands from './components/Brands';
+import Orders from './components/Orders';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -104,6 +105,33 @@ function App() {
                     >
                       <Toolbar />
                       <Brands />
+                    </Box>
+                  </Box>
+                </>
+              </ProtectedRoute>
+            </AuthCheck>
+          } />
+
+          <Route path="/orders" element={
+            <AuthCheck>
+              <ProtectedRoute>
+                <>
+                  <Sidebar />
+                  <Box sx={{ 
+                    marginLeft: '210px',
+                  }}>
+                    <Topbar />
+                    <Box
+                      component="main"
+                      sx={{
+                        flexGrow: 1,
+                        p: 3,
+                        width: `calc(100% - ${drawerWidth}px)`,
+                        transition: 'margin-left 0.3s ease-in-out, width 0.3s ease-in-out'
+                      }}
+                    >
+                      <Toolbar />
+                      <Orders />
                     </Box>
                   </Box>
                 </>
