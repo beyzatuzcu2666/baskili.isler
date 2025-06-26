@@ -26,8 +26,8 @@ const Sidebar = () => {
 
   const menuItems = [
     { text: 'Ürünler', path: '/products', icon: <StoreIcon /> },
-    { text: 'Teklifler', path: '/offers', icon: <ListAltIcon /> },
     { text: 'Markalar', path: '/brands', icon: <StoreIcon /> },
+    { text: 'Teklifler', path: '/offers', icon: <ListAltIcon /> },
     { text: 'Siparişler', path: '/orders', icon: <ListAltIcon /> },
   ];
 
