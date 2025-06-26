@@ -32,6 +32,7 @@ import {
   Delete as DeleteIcon,
   ShoppingCart as ShoppingCartIcon
 } from '@mui/icons-material';
+import { authService } from '../services/auth';
 import { Offer } from '../types/offer';
 import { offersService } from '../services/offers';
 import { brandsService } from '../services/brands';
@@ -210,11 +211,14 @@ const Offers = () => {
 
   const handleDelete = async (id: string) => {
     try {
+      const token = authService.getToken();
+      if (!token) throw new Error('Yetkilendirme hatası');
+
       const response = await fetch(`https://baskili-isler-backend.onrender.com/quotes/${id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+          Authorization: `Bearer ${token}`
         }
       });
 
