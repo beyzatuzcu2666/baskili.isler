@@ -14,7 +14,6 @@ export const ordersService = {
   },
 
   acceptOffer: async (offerId: string): Promise<void> => {
-    console.log('Accepting offer:', offerId);
     try {
       const response = await fetch(`${BASE_URL}/${offerId}/accept`, {
         method: 'PATCH',
@@ -34,9 +33,7 @@ export const ordersService = {
           `HTTP ${response.status}: ${response.statusText} - Sipariş kabul edilemedi`
         );
       }
-      console.log('Offer accepted successfully');
     } catch (error: any) {
-      console.error('Error accepting offer:', error);
       console.error('Error message:', error.message);
       throw error;
     }

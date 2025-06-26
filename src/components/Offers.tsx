@@ -112,8 +112,6 @@ const Offers = () => {
         }))
       };
 
-      console.log('Creating offer with payload:', payload);
-
       const offer = await offersService.create(payload);
       setOffers(prev => [...prev, offer]);
       resetDialog();
@@ -254,7 +252,6 @@ const Offers = () => {
     if (!selectedQuote) return;
     try {
       setConvertingToOrder(true);
-      console.log('Converting offer:', selectedQuote.id);
       await ordersService.acceptOffer(selectedQuote.id.toString());
       setDrawerOpen(false);
       setSnackbarMessage('Sipariş başarıyla oluşturuldu!');

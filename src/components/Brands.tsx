@@ -21,7 +21,6 @@ const Brands: React.FC = () => {
     const fetchBrands = async () => {
       try {
         const data = await brandsService.getBrands();
-        console.log(data);
         if (!Array.isArray(data)) {
           throw new Error('Invalid brands data format');
         }
