@@ -64,6 +64,7 @@ const Offers = () => {
   const [convertingToOrder, setConvertingToOrder] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteQuoteId, setDeleteQuoteId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [formItems, setFormItems] = useState<FormItem[]>([{ productId: '0', quantity: '', price: '' }]);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -222,12 +223,24 @@ const Offers = () => {
         }
       });
 
-      if (!response.ok) throw new Error('Silme işlemi başarısız');
+      if (!response.ok) {
+        const errorData = await response.json();
+        setDeleteError(errorData.message || 'Silme işlemi başarısız');
+        setDeleteDialogOpen(false);
+        return;
+      }
 
       await loadOffers();
       setDeleteDialogOpen(false);
-    } catch (error) {
+      setSnackbarMessage('Teklif başarıyla silindi!');
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
+    } catch (error: any) {
       console.error('Error deleting offer:', error);
+      setSnackbarMessage(error.message || 'Silme işlemi sırasında bir hata oluştu!');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+      setDeleteDialogOpen(false);
     }
   };
 
@@ -441,6 +454,19 @@ const Offers = () => {
           <Button variant="contained" color="error" onClick={handleConfirmDelete}>
             Sil
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Silme Hatası */}
+      <Dialog open={!!deleteError} onClose={() => setDeleteError(null)}>
+        <DialogTitle>Hata</DialogTitle>
+        <DialogContent>
+          <Typography variant="h6" color="error" align="center">
+            {deleteError}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteError(null)}>Tamam</Button>
         </DialogActions>
       </Dialog>
 
