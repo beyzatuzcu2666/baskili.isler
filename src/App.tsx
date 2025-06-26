@@ -18,11 +18,6 @@ import { authService } from './services/auth';
 const drawerWidth = 232;
 
 function App() {
-  useEffect(() => {
-    // Clear any existing token on initial load
-    authService.clearToken();
-  }, []);
-
   return (
     <Router>
       <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
