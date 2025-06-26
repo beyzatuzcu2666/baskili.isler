@@ -440,10 +440,10 @@ const Offers = () => {
 
       {/* Drawer */}
       <Drawer
-        anchor="bottom"
+        anchor="right"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        sx={{ '& .MuiDrawer-paper': { width: '500px', height: '90vh', borderRadius: '16px 16px 0 0', border: '1px solid', borderColor: 'divider', p: 2 } }}
+        sx={{ '& .MuiDrawer-paper': { width: '500px', borderRadius: '16px 0 0 16px', border: '1px solid', borderColor: 'divider', p: 2 } }}
       >
         <Typography variant="h6" gutterBottom>Teklif Detayları</Typography>
         <Divider sx={{ mb: 2 }} />
