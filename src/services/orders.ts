@@ -13,28 +13,15 @@ export const ordersService = {
     await http.delete(`${BASE_URL}/${id}`);
   },
 
-  acceptOffer: async (offerId: string): Promise<void> => {
+  acceptOffer: async (offerId: string, itemDeadlines: Record<string, string>): Promise<void> => {
     try {
-      const response = await fetch(`${BASE_URL}/${offerId}/accept`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authService.getToken()}`
-        }
-      });
+      const payload = {
+        itemDeadlines: itemDeadlines
+      };
       
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Response status:', response.status);
-        console.error('Response headers:', response.headers);
-        console.error('Response body:', errorData);
-        throw new Error(
-          errorData.message || 
-          `HTTP ${response.status}: ${response.statusText} - Sipariş kabul edilemedi`
-        );
-      }
+      await http.patch(`${BASE_URL}/${offerId}/accept`, payload);
     } catch (error: any) {
-      console.error('Error message:', error.message);
+      console.error('Error accepting offer:', error);
       throw error;
     }
   }

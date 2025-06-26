@@ -251,7 +251,20 @@ const Offers = () => {
     if (!selectedQuote) return;
     try {
       setConvertingToOrder(true);
-      await ordersService.acceptOffer(selectedQuote.id.toString());
+      
+      // Create itemDeadlines object with all product IDs from the items array
+      const itemDeadlines: Record<string, string> = {};
+      selectedQuote.items?.forEach(item => {
+        if (item.productId) {
+          itemDeadlines[item.productId.toString()] = "2025-12-26"; // You can make this date dynamic if needed
+        }
+      });
+
+      if (Object.keys(itemDeadlines).length === 0) {
+        throw new Error('Ürün ID bulunamadı');
+      }
+
+      await ordersService.acceptOffer(selectedQuote.id.toString(), itemDeadlines);
       setDrawerOpen(false);
       setSnackbarMessage('Sipariş başarıyla oluşturuldu!');
       setSnackbarSeverity('success');
