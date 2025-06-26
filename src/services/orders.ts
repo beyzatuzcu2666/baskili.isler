@@ -2,7 +2,7 @@ import { Order } from '../types/order';
 import { authService } from './auth';
 import { http } from './http';
 
-const BASE_URL = 'https://baskili-isler-backend.onrender.com/orders';
+const BASE_URL = '/orders';
 
 export const ordersService = {
   getAll: async (): Promise<Order[]> => {
