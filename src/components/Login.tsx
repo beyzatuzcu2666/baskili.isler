@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import { EmailOutlined, LockOutlined } from '@mui/icons-material';
 import { authService } from '../services/auth';
+import logo from '../assets/logo.png';
 
 interface LoginResponse {
   token: string;
@@ -76,15 +77,23 @@ const Login = () => {
             alignItems: 'center',
           }}
         >
-          <Typography component="h1" variant="h4" gutterBottom>
-            Baskılı İşler
-          </Typography>
-          <Typography component="h2" variant="h5" gutterBottom>
-            Giriş Yap
-          </Typography>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            Lütfen hesabınızla giriş yapın
-          </Typography>
+          <Box sx={{ mb: 4, textAlign: 'center' }}>
+            <img
+              src={logo}
+              alt="Baskılı İşler Logo"
+              style={{
+                width: '150px',
+                height: 'auto',
+                marginBottom: '1rem',
+              }}
+            />
+            <Typography component="h2" variant="h5" gutterBottom>
+              Giriş Yap
+            </Typography>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Lütfen hesabınızla giriş yapın
+            </Typography>
+          </Box>
 
           <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3, width: '100%' }}>
             {error && (

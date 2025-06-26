@@ -17,6 +17,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import StoreIcon from '@mui/icons-material/Store';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import PeopleIcon from '@mui/icons-material/People';
+import logo from '../assets/logo.png';
 
 const drawerWidth = 250;
 const collapsedWidth = 70;
@@ -48,22 +49,29 @@ const Sidebar = () => {
         },
       }}
     >
+      <Box sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        pt: 2,
+        pb: 1,
+        bgcolor: '#0D47A1'
+      }}>
+        <img
+          src={logo}
+          alt="Baskılı İşler Logo"
+          style={{
+            width: '100px',
+            height: 'auto',
+            marginBottom: '1rem',
+            display: isCollapsed ? 'none' : 'block'
+          }}
+        />
+      </Box>
       <Toolbar>
         <IconButton onClick={() => setIsCollapsed(!isCollapsed)} sx={{ ml: 1 }}>
           {isCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
         </IconButton>
-        <Typography
-          variant="h6"
-          noWrap
-          component="div"
-          sx={{
-            color: '#fff',
-            fontWeight: 'bold',
-            display: isCollapsed ? 'none' : 'block'
-          }}
-        >
-          Baskılı İşler
-        </Typography>
       </Toolbar>
       <Box sx={{ overflow: 'auto' }}>
         <List>
