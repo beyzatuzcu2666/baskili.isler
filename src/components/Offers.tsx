@@ -263,6 +263,7 @@ const Offers = () => {
               <TableCell>Marka Adı</TableCell>
               <TableCell>Durum</TableCell>
               <TableCell>Geçerlilik Tarihi</TableCell>
+              <TableCell>Oluşturulma Tarihi</TableCell>
               <TableCell>İşlemler</TableCell>
             </TableRow>
           </TableHead>
@@ -281,6 +282,7 @@ const Offers = () => {
                   <TableCell>{offer.brandName}</TableCell>
                   <TableCell>{offer.status}</TableCell>
                   <TableCell>{new Date(offer.validUntil).toLocaleDateString()}</TableCell>
+                  <TableCell>{new Date(offer.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell>
                     <IconButton onClick={() => handleEdit(offer)}><EditIcon /></IconButton>
                     <IconButton onClick={() => handleDeleteClick(offer.id.toString())}><DeleteIcon /></IconButton>
