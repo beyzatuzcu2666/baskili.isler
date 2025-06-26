@@ -20,7 +20,6 @@ import {
   Alert,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
 import { ordersService } from '../services/orders';
 import { Order } from '../types/order';
 
@@ -39,7 +38,6 @@ const Orders = () => {
       const data = await ordersService.getAll();
       setOrders(data);
     } catch (error) {
-      console.error('Error loading orders:', error);
       setSnackbarMessage('Siparişler yüklenirken bir hata oluştu!');
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
@@ -118,7 +116,6 @@ const Orders = () => {
         </Table>
       </TableContainer>
 
-      {/* Silme Onayı */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
         <DialogTitle>Silme Onayı</DialogTitle>
         <DialogContent>
@@ -134,7 +131,6 @@ const Orders = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={6000}

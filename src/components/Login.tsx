@@ -15,9 +15,6 @@ import { EmailOutlined, LockOutlined } from '@mui/icons-material';
 import { authService } from '../services/auth';
 import logo from '../assets/logo.png';
 
-interface LoginResponse {
-  token: string;
-}
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -26,7 +23,6 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Check if user is already authenticated
   useEffect(() => {
     if (authService.isAuthenticated()) {
       navigate('/brands');

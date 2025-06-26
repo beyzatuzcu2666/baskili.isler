@@ -8,15 +8,12 @@ import {
   ListItemText, 
   Toolbar, 
   IconButton, 
-  Typography, 
-  Box 
+  Box
 } from '@mui/material';
-import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import StoreIcon from '@mui/icons-material/Store';
 import ListAltIcon from '@mui/icons-material/ListAlt';
-import PeopleIcon from '@mui/icons-material/People';
 import logo from '../assets/logo.png';
 
 const drawerWidth = 250;

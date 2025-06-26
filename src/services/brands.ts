@@ -23,7 +23,6 @@ export const brandsService = {
       const response = await http.post('/brands', brandData);
       return response.data;
     } catch (error) {
-      console.error('Error creating brand:', error);
       throw error;
     }
   },

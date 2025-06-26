@@ -20,7 +20,6 @@ export const authService = {
   getToken: () => {
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) {
-      // Cookie'den token'i al
       const cookie = document.cookie.split(';').find(cookie => cookie.trim().startsWith(COOKIE_NAME));
       if (cookie) {
         const tokenFromCookie = cookie.split('=')[1];

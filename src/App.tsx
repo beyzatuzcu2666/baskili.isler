@@ -13,7 +13,6 @@ import AuthCheck from './components/AuthCheck';
 import LogoutRoute from './components/LogoutRoute';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { authService } from './services/auth';
 
 const drawerWidth = 232;
 

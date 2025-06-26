@@ -120,7 +120,6 @@ const Offers = () => {
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
     } catch (error: any) {
-      console.error('Error creating offer:', error);
       setSnackbarMessage(error.response?.data?.message || 'Teklif oluşturulurken bir hata oluştu!');
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
@@ -316,9 +315,7 @@ const Offers = () => {
           </TableBody>
         </Table>
       </TableContainer>
-
-      {/* Ekle / Güncelle Dialog */}
-      <Dialog 
+      <Dialog
         open={openDialog} 
         onClose={() => {
           resetDialog();
@@ -462,7 +459,6 @@ const Offers = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Silme Hatası */}
       <Dialog open={!!deleteError} onClose={() => setDeleteError(null)}>
         <DialogTitle>Hata</DialogTitle>
         <DialogContent>
@@ -475,7 +471,6 @@ const Offers = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Drawer */}
       <Drawer
         anchor="right"
         open={drawerOpen}

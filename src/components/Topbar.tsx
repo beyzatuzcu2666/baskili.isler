@@ -11,7 +11,6 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
-import { http } from '../services/http';
 
 const Topbar = () => {
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -25,7 +24,7 @@ const Topbar = () => {
     };
 
     const handleProfile = () => {
-        alert('Profil sayfasına yönlendiriliyor...');
+        alert('Profil sayfasına yönlendiriliyor');
         handleClose();
     };
 
