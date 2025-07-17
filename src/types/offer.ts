@@ -8,9 +8,7 @@ export interface Offer {
   validUntil: string;
   items: {
     productId: number;
-    productName: string;
     quantity: number;
     unitPrice: number;
-    lineTotal: number;
   }[];
 }

@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import http from '../services/http';
 import {
   Dialog,
   DialogTitle,
@@ -8,6 +7,7 @@ import {
   TextField,
   Button,
   Box,
+  CircularProgress,
 } from '@mui/material';
 
 interface BrandFormModalProps {
@@ -26,14 +26,16 @@ interface BrandFormModalProps {
   title: string;
   isUpdate?: boolean;
   brandId?: number;
+  loading?: boolean;
 }
 
-export const BrandFormModal: React.FC<BrandFormModalProps> = ({ open, onClose, onSubmit, initialData, title, isUpdate, brandId }) => {
+export const BrandFormModal: React.FC<BrandFormModalProps> = ({ open, onClose, onSubmit, initialData, title, isUpdate, brandId, loading = false }) => {
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
     contactEmail: initialData?.contactEmail || '',
     contactPhone: initialData?.contactPhone || '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   React.useEffect(() => {
     if (initialData) {
@@ -46,15 +48,14 @@ export const BrandFormModal: React.FC<BrandFormModalProps> = ({ open, onClose, o
   }, [initialData]);
 
   const handleSubmit = async () => {
+    setIsSubmitting(true);
     try {
-      if (isUpdate && brandId) {
-        await http.patch(`/brands/${brandId}`, formData);
-      } else {
-        await onSubmit(formData);
-      }
+      await onSubmit(formData);
       onClose();
     } catch (error) {
       console.error('Error submitting form:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -88,9 +89,21 @@ export const BrandFormModal: React.FC<BrandFormModalProps> = ({ open, onClose, o
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>İptal</Button>
-        <Button onClick={handleSubmit} variant="contained" color="primary">
-          Kaydet
+        <Button onClick={onClose} disabled={loading || isSubmitting}>İptal</Button>
+        <Button 
+          onClick={handleSubmit} 
+          variant="contained" 
+          color="primary"
+          disabled={loading || isSubmitting}
+        >
+          {(loading || isSubmitting) ? (
+            <>
+              <CircularProgress size={16} sx={{ color: 'white', mr: 1 }} />
+              {isUpdate ? 'Güncelleniyor...' : 'Kaydediliyor...'}
+            </>
+          ) : (
+            'Kaydet'
+          )}
         </Button>
       </DialogActions>
     </Dialog>

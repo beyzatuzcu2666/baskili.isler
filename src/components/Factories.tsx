@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { brandsService } from '../services/brands';
-import { Brand } from '../services/brands';
+import { factoriesService } from '../services/factories';
+import { Factory } from '../types/factory';
 import { 
   Button, 
   Box, 
@@ -21,156 +21,151 @@ import {
   InputAdornment,
   Fab,
   Tooltip,
-  Stack,
   Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions
+  Stack,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import { 
   Edit as EditIcon, 
   Delete as DeleteIcon,
   Search as SearchIcon,
   Add as AddIcon,
-  Business as BusinessIcon,
-  Email as EmailIcon,
+  Factory as FactoryIcon,
+  LocationOn as LocationIcon,
   Phone as PhoneIcon,
   TrendingUp as TrendingUpIcon,
-  Visibility as VisibilityIcon
+  Visibility as VisibilityIcon,
+  Build as BuildIcon
 } from '@mui/icons-material';
-import { BrandFormModal } from './BrandFormModal';
+import { FactoryFormModal } from './FactoryFormModal';
 import { ConfirmationDialog } from './ConfirmationDialog';
 
-const Brands: React.FC = () => {
-  const [brands, setBrands] = useState<Brand[]>([]);
+const Factories: React.FC = () => {
+  const [factories, setFactories] = useState<Factory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
+  const [selectedFactory, setSelectedFactory] = useState<Factory | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleteBrandId, setDeleteBrandId] = useState<number | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteFactoryId, setDeleteFactoryId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [viewBrand, setViewBrand] = useState<Brand | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   useEffect(() => {
-    const fetchBrands = async () => {
+    const fetchFactories = async () => {
       try {
-        const data = await brandsService.getBrands();
+        const data = await factoriesService.getAll();
         if (!Array.isArray(data)) {
-          throw new Error('Invalid brands data format');
+          console.warn('API response is not an array, using empty array');
+          setFactories([]);
+        } else {
+          setFactories(data);
         }
-        setBrands(data);
-      } catch (err) {
-        setError('Brands data could not be loaded');
-        console.error('Brands fetch error:', err);
+        setError(null);
+      } catch (err: any) {
+        console.error('Factories fetch error:', err);
+        setError(err.message || 'Fabrika verileri yüklenemedi. API bağlantısını kontrol edin.');
+        setFactories([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchBrands();
+    fetchFactories();
   }, []);
 
-  const filteredBrands = brands.filter(brand =>
-    brand.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    brand.contactEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    brand.contactPhone.includes(searchTerm)
-  );
+  const filteredFactories = factories.filter(factory => {
+    // Text search filter
+    const matchesSearch = factory.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      factory.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      factory.phoneNumber.includes(searchTerm);
+    
+    // Status filter
+    const matchesStatus = statusFilter === 'all' || 
+      (statusFilter === 'active' && factory.active) ||
+      (statusFilter === 'inactive' && !factory.active);
+    
+    return matchesSearch && matchesStatus;
+  });
 
-  const handleAddBrand = async (data: {
-    name: string;
-    contactEmail: string;
-    contactPhone: string;
-  }) => {
-    setIsCreating(true);
+  const handleAddFactory = async (data: Omit<Factory, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      await brandsService.createBrand(data);
-      const updatedBrands = await brandsService.getBrands();
-      setBrands(updatedBrands);
-      setError(null);
+      await factoriesService.create(data);
+      const updatedFactories = await factoriesService.getAll();
+      setFactories(updatedFactories);
+      setIsModalOpen(false);
     } catch (error) {
-      console.error('Error adding brand:', error);
-      setError('Marka eklenirken bir hata oluştu');
-    } finally {
-      setIsCreating(false);
+      console.error('Error adding factory:', error);
+      setError('Fabrika eklenirken bir hata oluştu');
     }
   };
 
-  const handleEditBrand = async (brandId: number, data: {
-    name: string;
-    contactEmail: string;
-    contactPhone: string;
-  }) => {
-    setIsUpdating(true);
+  const handleEditFactory = async (factoryId: number, data: Partial<Omit<Factory, 'id' | 'createdAt' | 'updatedAt'>>) => {
     try {
-      await brandsService.updateBrand(brandId, data);
-      const updatedBrands = await brandsService.getBrands();
-      setBrands(updatedBrands);
-      setError(null);
+      await factoriesService.update(factoryId, data);
+      const updatedFactories = await factoriesService.getAll();
+      setFactories(updatedFactories);
+      setIsEditModalOpen(false);
     } catch (error) {
-      console.error('Error updating brand:', error);
-      setError('Marka güncellenirken bir hata oluştu');
-    } finally {
-      setIsUpdating(false);
+      console.error('Error updating factory:', error);
+      setError('Fabrika güncellenirken bir hata oluştu');
     }
   };
 
-  const handleDeleteBrand = async (brandId: number) => {
-    setDeleteBrandId(brandId);
+  const handleDeleteFactory = async (factoryId: number) => {
+    setDeleteFactoryId(factoryId);
     setConfirmDelete(true);
   };
 
-  const confirmDeleteBrand = async () => {
-    if (deleteBrandId) {
-      setIsDeleting(true);
+  const confirmDeleteFactory = async () => {
+    if (deleteFactoryId) {
       try {
-        await brandsService.deleteBrand(deleteBrandId);
-        const updatedBrands = await brandsService.getBrands();
-        setBrands(updatedBrands);
+        await factoriesService.delete(deleteFactoryId);
+        const updatedFactories = await factoriesService.getAll();
+        setFactories(updatedFactories);
         setConfirmDelete(false);
-        setError(null);
+        setDeleteFactoryId(null);
       } catch (error) {
-        console.error('Error deleting brand:', error);
-        setError('Marka silinirken bir hata oluştu');
-      } finally {
-        setIsDeleting(false);
+        console.error('Error deleting factory:', error);
+        setError('Fabrika silinirken bir hata oluştu');
       }
     }
   };
 
-  const handleView = (brand: Brand) => {
-    setViewBrand(brand);
-    setViewModalOpen(true);
+  const getActiveFactoriesCount = () => {
+    return factories.filter(factory => factory.active).length;
+  };
+
+  const getInactiveFactoriesCount = () => {
+    return factories.filter(factory => !factory.active).length;
   };
 
   // Statistics Cards Data
   const statsData = [
     {
-      title: 'Toplam Marka',
-      value: brands.length,
-      icon: <BusinessIcon />,
+      title: 'Toplam Fabrika',
+      value: factories.length,
+      icon: <FactoryIcon />,
       color: '#10b981',
       trend: '+12%'
     },
     {
-      title: 'Aktif Markalar',
-      value: brands.length,
+      title: 'Aktif Fabrikalar',
+      value: getActiveFactoriesCount(),
       icon: <TrendingUpIcon />,
-      color: '#f97316',
+      color: '#1e3a8a',
       trend: '+8%'
     },
     {
-      title: 'Bu Ay Eklenen',
-      value: Math.floor(brands.length * 0.3),
-      icon: <AddIcon />,
-      color: '#1e3a8a',
-      trend: '+25%'
+      title: 'Pasif Fabrikalar',
+      value: getInactiveFactoriesCount(),
+      icon: <BuildIcon />,
+      color: '#ef4444',
+      trend: '0%'
     }
   ];
 
@@ -198,10 +193,10 @@ const Brands: React.FC = () => {
       {/* Page Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" sx={{ fontWeight: 700, color: '#1f2937', mb: 1 }}>
-          Marka Yönetimi
+          Fabrika Yönetimi
         </Typography>
         <Typography variant="body1" sx={{ color: '#6b7280' }}>
-          Markalarınızı yönetin, düzenleyin ve takip edin
+          Fabrikalarınızı yönetin, düzenleyin ve takip edin
         </Typography>
       </Box>
 
@@ -272,35 +267,65 @@ const Brands: React.FC = () => {
       <Card sx={{ mb: 3, border: '1px solid #e5e7eb', borderRadius: 2 }}>
         <CardContent sx={{ p: 3 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-            <TextField
-              placeholder="Marka ara..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ color: '#6b7280' }} />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{
-                minWidth: 300,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                  backgroundColor: '#f9fafb',
-                  '& .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#e5e7eb',
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+              <TextField
+                placeholder="Fabrika ara..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ color: '#6b7280' }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  minWidth: 250,
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    backgroundColor: '#f9fafb',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#e5e7eb',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#10b981',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#10b981',
+                      borderWidth: '2px',
+                    },
                   },
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#10b981',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#10b981',
-                    borderWidth: '2px',
-                  },
-                },
-              }}
-            />
+                }}
+              />
+              <FormControl sx={{ minWidth: 150 }}>
+                <InputLabel id="status-filter-label">Durum</InputLabel>
+                <Select
+                  labelId="status-filter-label"
+                  id="status-filter"
+                  value={statusFilter}
+                  label="Durum"
+                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+                  sx={{
+                    borderRadius: 2,
+                    backgroundColor: '#f9fafb',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#e5e7eb',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#10b981',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#10b981',
+                      borderWidth: '2px',
+                    },
+                  }}
+                >
+                  <MenuItem value="all">Tümü</MenuItem>
+                  <MenuItem value="active">Aktif</MenuItem>
+                  <MenuItem value="inactive">Pasif</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -320,15 +345,15 @@ const Brands: React.FC = () => {
                 },
               }}
             >
-              Yeni Marka
-        </Button>
+              Yeni Fabrika
+            </Button>
           </Box>
         </CardContent>
       </Card>
 
       {/* Error Alert */}
       {error && (
-        <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+        <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
@@ -340,7 +365,7 @@ const Brands: React.FC = () => {
             <TableHead>
               <TableRow sx={{ backgroundColor: '#f9fafb' }}>
                 <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
-                  Marka
+                  Fabrika
                 </TableCell>
                 <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
                   İletişim Bilgileri
@@ -354,27 +379,27 @@ const Brands: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredBrands.length === 0 ? (
+              {filteredFactories.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
                     <Box sx={{ textAlign: 'center' }}>
-                      <BusinessIcon sx={{ fontSize: 48, color: '#9ca3af', mb: 2 }} />
+                      <FactoryIcon sx={{ fontSize: 48, color: '#9ca3af', mb: 2 }} />
                       <Typography variant="h6" sx={{ color: '#6b7280', mb: 1 }}>
-                        {searchTerm ? 'Arama sonucu bulunamadı' : 'Henüz marka eklenmemiş'}
+                        {searchTerm ? 'Arama sonucu bulunamadı' : 'Henüz fabrika eklenmemiş'}
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#9ca3af' }}>
-                        {searchTerm ? 'Farklı arama terimleri deneyin' : 'İlk markanızı eklemek için "Yeni Marka" butonuna tıklayın'}
+                        {searchTerm ? 'Farklı arama terimleri deneyin' : 'İlk fabrikanızı eklemek için "Yeni Fabrika" butonuna tıklayın'}
                       </Typography>
                     </Box>
                   </TableCell>
                 </TableRow>
-                ) : (
-                filteredBrands.map((brand, index) => (
+              ) : (
+                filteredFactories.map((factory, index) => (
                   <TableRow 
-                    key={brand.id}
+                    key={factory.id}
                     sx={{ 
                       '&:hover': { backgroundColor: '#f9fafb' },
-                      borderBottom: index === filteredBrands.length - 1 ? 'none' : '1px solid #e5e7eb'
+                      borderBottom: index === filteredFactories.length - 1 ? 'none' : '1px solid #e5e7eb'
                     }}
                   >
                     <TableCell sx={{ py: 2 }}>
@@ -388,41 +413,51 @@ const Brands: React.FC = () => {
                             fontWeight: 600
                           }}
                         >
-                          {brand.name.charAt(0).toUpperCase()}
+                          {factory.name.charAt(0).toUpperCase()}
                         </Avatar>
                         <Box>
                           <Typography variant="body1" sx={{ fontWeight: 600, color: '#1f2937' }}>
-                            {brand.name}
+                            {factory.name}
                           </Typography>
                           <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                            ID: {brand.id}
+                            ID: {factory.id}
                           </Typography>
                         </Box>
                       </Box>
                     </TableCell>
                     <TableCell sx={{ py: 2 }}>
                       <Stack spacing={1}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <EmailIcon sx={{ fontSize: 16, color: '#6b7280' }} />
-                          <Typography variant="body2" sx={{ color: '#374151' }}>
-                            {brand.contactEmail}
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                          <LocationIcon sx={{ fontSize: 16, color: '#6b7280', mt: 0.5 }} />
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              color: '#374151',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                            }}
+                          >
+                            {factory.address}
                           </Typography>
                         </Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <PhoneIcon sx={{ fontSize: 16, color: '#6b7280' }} />
                           <Typography variant="body2" sx={{ color: '#374151' }}>
-                            {brand.contactPhone}
+                            {factory.phoneNumber}
                           </Typography>
                         </Box>
                       </Stack>
                     </TableCell>
                     <TableCell sx={{ py: 2 }}>
                       <Chip 
-                        label="Aktif" 
+                        label={factory.active ? 'Aktif' : 'Pasif'} 
                         size="small" 
                         sx={{ 
-                          backgroundColor: '#10b98120',
-                          color: '#10b981',
+                          backgroundColor: factory.active ? '#10b98120' : '#ef444420',
+                          color: factory.active ? '#10b981' : '#ef4444',
                           fontWeight: 600,
                           borderRadius: 2
                         }} 
@@ -433,7 +468,6 @@ const Brands: React.FC = () => {
                         <Tooltip title="Görüntüle">
                           <IconButton 
                             size="small"
-                            onClick={() => handleView(brand)}
                             sx={{ 
                               color: '#6b7280',
                               '&:hover': { backgroundColor: '#f3f4f6', color: '#374151' }
@@ -445,10 +479,10 @@ const Brands: React.FC = () => {
                         <Tooltip title="Düzenle">
                           <IconButton 
                             size="small"
-                          onClick={() => {
-                            setSelectedBrand(brand);
-                            setIsEditModalOpen(true);
-                          }}
+                            onClick={() => {
+                              setSelectedFactory(factory);
+                              setIsEditModalOpen(true);
+                            }}
                             sx={{ 
                               color: '#f97316',
                               '&:hover': { backgroundColor: '#fef3e2', color: '#ea580c' }
@@ -460,7 +494,7 @@ const Brands: React.FC = () => {
                         <Tooltip title="Sil">
                           <IconButton 
                             size="small"
-                          onClick={() => handleDeleteBrand(brand.id)}
+                            onClick={() => handleDeleteFactory(factory.id)}
                             sx={{ 
                               color: '#ef4444',
                               '&:hover': { backgroundColor: '#fef2f2', color: '#dc2626' }
@@ -472,8 +506,8 @@ const Brands: React.FC = () => {
                       </Box>
                     </TableCell>
                   </TableRow>
-                  ))
-                )}
+                ))
+              )}
             </TableBody>
           </Table>
         </TableContainer>
@@ -495,146 +529,37 @@ const Brands: React.FC = () => {
         <AddIcon />
       </Fab>
 
-      {/* View Brand Dialog */}
-      <Dialog open={viewModalOpen} onClose={() => setViewModalOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600, color: '#1f2937', pb: 2 }}>
-          Marka Detayları
-        </DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
-          {viewBrand && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {/* Brand Header */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, backgroundColor: '#f9fafb', borderRadius: 2 }}>
-                <Avatar 
-                  sx={{ 
-                    backgroundColor: '#10b98120',
-                    color: '#10b981',
-                    width: 56,
-                    height: 56,
-                    fontWeight: 600,
-                    fontSize: '1.5rem'
-                  }}
-                >
-                  {viewBrand.name.charAt(0).toUpperCase()}
-                </Avatar>
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937', mb: 0.5 }}>
-                    {viewBrand.name}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                    ID: {viewBrand.id}
-                  </Typography>
-                </Box>
-              </Box>
-
-              {/* Brand Details */}
-              <Stack spacing={2}>
-                <Box>
-                  <Typography variant="body2" sx={{ color: '#6b7280', mb: 0.5 }}>
-                    İletişim E-postası
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <EmailIcon sx={{ fontSize: 16, color: '#6b7280' }} />
-                    <Typography variant="body1" sx={{ fontWeight: 500, color: '#374151' }}>
-                      {viewBrand.contactEmail}
-                    </Typography>
-                  </Box>
-                </Box>
-
-                <Box>
-                  <Typography variant="body2" sx={{ color: '#6b7280', mb: 0.5 }}>
-                    İletişim Telefonu
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <PhoneIcon sx={{ fontSize: 16, color: '#6b7280' }} />
-                    <Typography variant="body1" sx={{ fontWeight: 500, color: '#374151' }}>
-                      {viewBrand.contactPhone}
-                    </Typography>
-                  </Box>
-                </Box>
-
-                <Box>
-                  <Typography variant="body2" sx={{ color: '#6b7280', mb: 0.5 }}>
-                    Durum
-                  </Typography>
-                  <Chip 
-                    label="Aktif" 
-                    size="small" 
-                    sx={{ 
-                      backgroundColor: '#10b98120',
-                      color: '#10b981',
-                      fontWeight: 600,
-                      borderRadius: 2
-                    }} 
-                  />
-                </Box>
-              </Stack>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 2 }}>
-          <Button 
-            onClick={() => setViewModalOpen(false)}
-            sx={{ 
-              color: '#6b7280',
-              borderRadius: 2,
-              px: 3,
-              '&:hover': { backgroundColor: '#f3f4f6' }
-            }}
-          >
-            Kapat
-          </Button>
-          {viewBrand && (
-            <Button 
-              onClick={() => {
-                setViewModalOpen(false);
-                setSelectedBrand(viewBrand);
-                setIsEditModalOpen(true);
-              }}
-              variant="contained"
-              sx={{
-                backgroundColor: '#10b981',
-                borderRadius: 2,
-                px: 3,
-                '&:hover': { backgroundColor: '#059669' }
-              }}
-            >
-              Düzenle
-            </Button>
-          )}
-        </DialogActions>
-      </Dialog>
-
       {/* Modals */}
-      <BrandFormModal
+      <FactoryFormModal
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSubmit={handleAddBrand}
-        title="Marka Ekle"
+        onSubmit={handleAddFactory}
+        title="Fabrika Ekle"
         isUpdate={false}
-        loading={isCreating}
       />
-      <BrandFormModal
+      <FactoryFormModal
         open={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSubmit={(data) => handleEditBrand(selectedBrand?.id || 0, data)}
-        initialData={selectedBrand || undefined}
-        title="Marka Güncelle"
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedFactory(null);
+        }}
+        onSubmit={(data) => selectedFactory && handleEditFactory(selectedFactory.id, data)}
+        initialData={selectedFactory || undefined}
+        title="Fabrika Güncelle"
         isUpdate={true}
-        brandId={selectedBrand?.id}
-        loading={isUpdating}
       />
       <ConfirmationDialog
         open={confirmDelete}
-        onClose={() => setConfirmDelete(false)}
-        onConfirm={confirmDeleteBrand}
-        title="Marka Silme Onayı"
-        message="Bu markayı silmek istediğinize emin misiniz?"
-        loading={isDeleting}
-        confirmText={isDeleting ? 'Siliniyor...' : 'Sil'}
+        onClose={() => {
+          setConfirmDelete(false);
+          setDeleteFactoryId(null);
+        }}
+        onConfirm={confirmDeleteFactory}
+        title="Fabrika Silme Onayı"
+        message="Bu fabrikayı silmek istediğinize emin misiniz? Bu işlem geri alınamaz."
       />
     </Box>
   );
 };
 
-export default Brands;
+export default Factories;

@@ -8,6 +8,7 @@ import {
   Button,
   IconButton,
   Box,
+  CircularProgress,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckIcon from '@mui/icons-material/Check';
@@ -18,6 +19,8 @@ interface ConfirmationDialogProps {
   onConfirm: () => void;
   title: string;
   message: string;
+  loading?: boolean;
+  confirmText?: string;
 }
 
 export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
@@ -26,6 +29,8 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
   onConfirm,
   title,
   message,
+  loading = false,
+  confirmText = 'Sil',
 }) => {
   return (
     <Dialog
@@ -44,11 +49,17 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
         <DialogContentText>{message}</DialogContentText>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} startIcon={<CloseIcon />}>
+        <Button onClick={onClose} disabled={loading} startIcon={<CloseIcon />}>
           İptal
         </Button>
-        <Button onClick={onConfirm} variant="contained" color="error" startIcon={<CheckIcon />}>
-          Sil
+        <Button 
+          onClick={onConfirm} 
+          variant="contained" 
+          color="error" 
+          disabled={loading}
+          startIcon={loading ? <CircularProgress size={16} sx={{ color: 'white' }} /> : <CheckIcon />}
+        >
+          {confirmText}
         </Button>
       </DialogActions>
     </Dialog>

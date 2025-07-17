@@ -1,131 +1,90 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
+  Button,
+  Typography,
+  Card,
+  CardContent,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
-  Button,
+  CircularProgress,
+  IconButton,
+  Chip,
+  Avatar,
   TextField,
+  InputAdornment,
+  Fab,
+  Tooltip,
+  Stack,
+  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Drawer,
-  Divider,
-  Typography,
-  CircularProgress,
-  IconButton,
   Select,
   MenuItem,
   FormControl,
-  InputLabel,
-  SelectChangeEvent
+  InputLabel
 } from '@mui/material';
-import { Snackbar, Alert } from '@mui/material';
 import { 
-  ArrowForward as ArrowForwardIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  ShoppingCart as ShoppingCartIcon
+  Search as SearchIcon,
+  Add as AddIcon,
+  LocalOffer as LocalOfferIcon,
+  TrendingUp as TrendingUpIcon,
+  Schedule as ScheduleIcon,
+  Visibility as VisibilityIcon,
+  ShoppingCart as ShoppingCartIcon,
+  Close as CloseIcon,
+  Remove as RemoveIcon
 } from '@mui/icons-material';
-import { authService } from '../services/auth';
 import { Offer } from '../types/offer';
-import { offersService } from '../services/offers';
-import { brandsService } from '../services/brands';
 import { Brand } from '../types/brand';
-import { productsService } from '../services/products';
 import { Product } from '../types/product';
+import { offersService } from '../services/offers';
 import { ordersService } from '../services/orders';
-
-interface FormItem {
-  productId: string;
-  quantity: string;
-  price: string;
-}
+import { brandsService } from '../services/brands';
+import { productsService } from '../services/products';
+import { ConfirmationDialog } from './ConfirmationDialog';
 
 const Offers = () => {
   const [offers, setOffers] = useState<Offer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [selectedQuote, setSelectedQuote] = useState<Offer | null>(null);
-  const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
-  const [newBrandName, setNewBrandName] = useState('');
   const [brands, setBrands] = useState<Brand[]>([]);
-  const [loadingBrands, setLoadingBrands] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [quantity, setQuantity] = useState('');
-  const [price, setPrice] = useState('');
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteOfferId, setDeleteOfferId] = useState<string | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [convertingToOrder, setConvertingToOrder] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteQuoteId, setDeleteQuoteId] = useState<string | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [formItems, setFormItems] = useState<FormItem[]>([{ productId: '0', quantity: '', price: '' }]);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
-
-  const addFormItem = () => {
-    setFormItems(prev => [...prev, { productId: '0', quantity: '', price: '' }]);
-  };
-
-  const removeFormItem = (index: number) => {
-    setFormItems(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const updateFormItem = (index: number, field: keyof FormItem, value: string) => {
-    setFormItems(prev => {
-      const newItems = [...prev];
-      newItems[index] = { ...newItems[index], [field]: value };
-      return newItems;
-    });
-  };
-
-  const handleCreate = async () => {
-    if (!newBrandName.trim() || formItems.length === 0) return;
-
-    try {
-      const total = formItems.reduce((sum, item) => {
-        const quantity = parseInt(item.quantity);
-        const price = parseFloat(item.price);
-        return sum + (quantity * price);
-      }, 0);
-
-      const selectedBrand = brands.find(brand => brand.name === newBrandName);
-      const payload = {
-        brandId: selectedBrand?.id || 0,
-        status: 'OFFER_SENT' as const,
-        totalPrice: total,
-        validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
-        items: formItems.map(item => ({
-          productId: parseInt(item.productId),
-          quantity: parseInt(item.quantity),
-          unitPrice: parseFloat(item.price),
-          productName: products.find(p => p.id === parseInt(item.productId))?.name || '',
-          lineTotal: parseFloat(item.price) * parseInt(item.quantity)
-        }))
-      };
-
-      const offer = await offersService.create(payload);
-      setOffers(prev => [...prev, offer]);
-      resetDialog();
-      setOpenDialog(false);
-      setSnackbarMessage('Teklif başarıyla oluşturuldu!');
-      setSnackbarSeverity('success');
-      setSnackbarOpen(true);
-    } catch (error: any) {
-      setSnackbarMessage(error.response?.data?.message || 'Teklif oluşturulurken bir hata oluştu!');
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
-      setOpenDialog(false);
-    }
-  };
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [viewOffer, setViewOffer] = useState<Offer | null>(null);
+  const [editOffer, setEditOffer] = useState<{
+    brandId: number;
+    status: string;
+    totalPrice: number;
+    validUntil: string;
+    items: { productId: number; quantity: number; unitPrice: number; }[];
+  } | null>(null);
+  const [newOffer, setNewOffer] = useState({
+    brandId: 0,
+    status: 'OFFER_SENT' as const,
+    totalPrice: 0,
+    validUntil: '',
+    items: [] as { productId: number; quantity: number; unitPrice: number; }[]
+  });
 
   useEffect(() => {
     loadOffers();
@@ -133,194 +92,587 @@ const Offers = () => {
     loadProducts();
   }, []);
 
-  const loadOffers = async () => {
-    try {
-      setLoading(true);
-      const data = await offersService.getAll();
-      setOffers(data);
-    } catch (error) {
-      console.error('Error loading offers:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const loadBrands = async () => {
     try {
-      setLoadingBrands(true);
       const data = await brandsService.getBrands();
       setBrands(data);
     } catch (error) {
       console.error('Error loading brands:', error);
-    } finally {
-      setLoadingBrands(false);
     }
   };
 
   const loadProducts = async () => {
     try {
-      setLoadingProducts(true);
       const data = await productsService.getAll();
       setProducts(data);
     } catch (error) {
       console.error('Error loading products:', error);
-    } finally {
-      setLoadingProducts(false);
     }
   };
 
-  const resetDialog = () => {
-    setSelectedOffer(null);
-    setNewBrandName('');
-    setSelectedProduct(null);
-    setQuantity('');
-    setPrice('');
+  const filteredOffers = offers.filter(offer =>
+    offer.brandName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    offer.status?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const loadOffers = async () => {
+    try {
+      const data = await offersService.getAll();
+      setOffers(data);
+      setError(null);
+    } catch (error) {
+      console.error('Error loading offers:', error);
+      setError('Teklifler yüklenirken bir hata oluştu');
+    } finally {
+      setLoading(false);
+    }
   };
 
-
+  const handleView = (offer: Offer) => {
+    setViewOffer(offer);
+    setIsViewModalOpen(true);
+  };
 
   const handleEdit = (offer: Offer) => {
     setSelectedOffer(offer);
-    const brand = brands.find(b => b.id === offer.brandId);
-    setNewBrandName(brand?.name || '');
-    setOpenDialog(true);
+    setEditOffer({
+      brandId: offer.brandId,
+      status: offer.status,
+      totalPrice: offer.totalPrice,
+      validUntil: offer.validUntil,
+      items: [...offer.items]
+    });
+    setIsEditModalOpen(true);
   };
 
-  const handleUpdateOffer = async () => {
-    if (!selectedOffer) return;
-
+  const handleUpdate = async () => {
+    if (!selectedOffer || !editOffer) return;
+    
+    setIsUpdating(true);
     try {
-      const updatedOffer = await offersService.update(selectedOffer.id, { brandId: parseInt(newBrandName) });
-      setOffers(offers.map(o => o.id === selectedOffer.id ? updatedOffer : o));
-      resetDialog();
-      setOpenDialog(false);
+      const updatedData = {
+        brandId: editOffer.brandId,
+        totalPrice: calculateEditTotalPrice(),
+        validUntil: editOffer.validUntil,
+        items: editOffer.items
+      };
+      
+      await offersService.update(selectedOffer.id, updatedData);
+      await loadOffers(); // Reload offers
+      setIsEditModalOpen(false);
+      setSelectedOffer(null);
+      setEditOffer(null);
+      setError(null);
     } catch (error) {
       console.error('Error updating offer:', error);
+      setError('Teklif güncellenirken bir hata oluştu');
+    } finally {
+      setIsUpdating(false);
     }
   };
 
-  const handleDeleteClick = (id: string) => {
-    setDeleteQuoteId(id);
-    setDeleteDialogOpen(true);
+  const handleCreate = async (newOfferData: Omit<Offer, 'id' | 'createdAt'>) => {
+    setIsCreating(true);
+    try {
+      await offersService.create(newOfferData);
+      await loadOffers(); // Reload offers
+      setIsCreateModalOpen(false);
+      setError(null);
+    } catch (error) {
+      console.error('Error creating offer:', error);
+      setError('Yeni teklif oluşturulürken bir hata oluştu');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
-  const handleConfirmDelete = () => {
-    if (deleteQuoteId) handleDelete(deleteQuoteId);
+  const addItem = () => {
+    setNewOffer({
+      ...newOffer,
+      items: [...newOffer.items, { productId: 0, quantity: 1, unitPrice: 0 }]
+    });
+  };
+
+  const removeItem = (index: number) => {
+    const updatedItems = newOffer.items.filter((_, i) => i !== index);
+    setNewOffer({
+      ...newOffer,
+      items: updatedItems
+    });
+  };
+
+  const updateItem = (index: number, field: 'productId' | 'quantity' | 'unitPrice', value: number) => {
+    const updatedItems = [...newOffer.items];
+    updatedItems[index] = { ...updatedItems[index], [field]: value };
+    setNewOffer({
+      ...newOffer,
+      items: updatedItems
+    });
+  };
+
+  const addEditItem = () => {
+    if (!editOffer) return;
+    setEditOffer({
+      ...editOffer,
+      items: [...editOffer.items, { productId: 0, quantity: 1, unitPrice: 0 }]
+    });
+  };
+
+  const removeEditItem = (index: number) => {
+    if (!editOffer) return;
+    const updatedItems = editOffer.items.filter((_, i) => i !== index);
+    setEditOffer({
+      ...editOffer,
+      items: updatedItems
+    });
+  };
+
+  const updateEditItem = (index: number, field: 'productId' | 'quantity' | 'unitPrice', value: number) => {
+    if (!editOffer) return;
+    const updatedItems = [...editOffer.items];
+    updatedItems[index] = { ...updatedItems[index], [field]: value };
+    setEditOffer({
+      ...editOffer,
+      items: updatedItems
+    });
+  };
+
+  const calculateTotalPrice = () => {
+    return newOffer.items.reduce((total, item) => total + (item.quantity * item.unitPrice), 0);
+  };
+
+  const calculateEditTotalPrice = () => {
+    if (!editOffer) return 0;
+    return editOffer.items.reduce((total, item) => total + (item.quantity * item.unitPrice), 0);
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      const token = authService.getToken();
-      if (!token) throw new Error('Yetkilendirme hatası');
+    setDeleteOfferId(id);
+    setConfirmDelete(true);
+  };
 
-      const response = await fetch(`https://baskili-isler-backend.onrender.com/quotes/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        setDeleteError(errorData.message || 'Silme işlemi başarısız');
-        setDeleteDialogOpen(false);
-        return;
-      }
-
-      await loadOffers();
-      setDeleteDialogOpen(false);
-      setSnackbarMessage('Teklif başarıyla silindi!');
-      setSnackbarSeverity('success');
-      setSnackbarOpen(true);
-    } catch (error: any) {
+  const confirmDeleteOffer = async () => {
+    if (deleteOfferId) {
+      setIsDeleting(true);
+      try {
+        await offersService.delete(parseInt(deleteOfferId));
+        setOffers(offers.filter(o => o.id.toString() !== deleteOfferId));
+        setDeleteOfferId(null);
+        setConfirmDelete(false);
+        setError(null);
+      } catch (error) {
       console.error('Error deleting offer:', error);
-      setSnackbarMessage(error.message || 'Silme işlemi sırasında bir hata oluştu!');
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
-      setDeleteDialogOpen(false);
+        setError('Teklif silinirken bir hata oluştu');
+      } finally {
+        setIsDeleting(false);
+      }
     }
   };
 
-  const handleDetailsClick = (offer: Offer) => {
-    setSelectedQuote(offer);
-    setDrawerOpen(true);
+  const handleConvertToOrder = (offer: Offer) => {
+    setSelectedOffer(offer);
+    setIsOrderModalOpen(true);
   };
 
-  const convertToOrder = async () => {
-    if (!selectedQuote) return;
+    const confirmConvertToOrder = async () => {
+    if (!selectedOffer) return;
+    
+    setConvertingToOrder(true);
     try {
-      setConvertingToOrder(true);
-      
-      // Create itemDeadlines object with all product IDs from the items array
+      // Convert offer to order using the correct endpoint
+      // Swagger'da belirtilen /orders/accept endpoint'ini kullan
       const itemDeadlines: Record<string, string> = {};
-      selectedQuote.items?.forEach(item => {
-        if (item.productId) {
-          itemDeadlines[item.productId.toString()] = "2025-12-26"; // You can make this date dynamic if needed
-        }
+      selectedOffer.items.forEach((item, index) => {
+        // Her item için 30 gün sonraki tarih
+        itemDeadlines[item.productId.toString()] = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       });
-
-      if (Object.keys(itemDeadlines).length === 0) {
-        throw new Error('Ürün ID bulunamadı');
-      }
-
-      await ordersService.acceptOffer(selectedQuote.id.toString(), itemDeadlines);
-      setDrawerOpen(false);
-      setSnackbarMessage('Sipariş başarıyla oluşturuldu!');
-      setSnackbarSeverity('success');
-      setSnackbarOpen(true);
-      await loadOffers();
-    } catch (error: any) {
+      
+      await ordersService.acceptOffer(selectedOffer.id.toString(), itemDeadlines);
+      
+      await loadOffers(); // Reload offers
+      setIsOrderModalOpen(false);
+      setSelectedOffer(null);
+      
+      // Show success message
+      setError(null);
+      // You could show a success toast here instead
+      
+    } catch (error) {
       console.error('Error converting to order:', error);
-      setSnackbarMessage(error.message || 'Sipariş oluşturulurken bir hata oluştu!');
-      setSnackbarSeverity('error');
-      setSnackbarOpen(true);
+      setError('Teklif siparişe dönüştürülürken bir hata oluştu');
     } finally {
       setConvertingToOrder(false);
     }
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'offer_sent':
+        return '#f97316';
+      case 'offer_accepted':
+      case 'accepted':
+        return '#10b981';
+      case 'offer_rejected':
+      case 'rejected':
+        return '#ef4444';
+      default:
+        return '#6b7280';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'offer_sent':
+        return 'Gönderildi';
+      case 'offer_accepted':
+      case 'accepted':
+        return 'Kabul Edildi';
+      case 'offer_rejected':
+      case 'rejected':
+        return 'Reddedildi';
+      default:
+        return status;
+    }
+  };
+
+  // Statistics Cards Data
+  const statsData = [
+    {
+      title: 'Toplam Teklif',
+      value: offers.length,
+      icon: <LocalOfferIcon />,
+      color: '#10b981',
+      trend: '+18%'
+    },
+    {
+      title: 'Bekleyen Teklifler',
+      value: offers.filter(o => o.status === 'OFFER_SENT').length,
+      icon: <ScheduleIcon />,
+      color: '#f97316',
+      trend: '+5%'
+    },
+    {
+      title: 'Kabul Edilen',
+      value: offers.filter(o => o.status === 'OFFER_ACCEPTED').length,
+      icon: <TrendingUpIcon />,
+      color: '#1e3a8a',
+      trend: '+22%'
+    }
+  ];
+
+  if (loading) {
   return (
     <Box sx={{ p: 3 }}>
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between' }}>
-        <Typography variant="h5">Teklifler</Typography>
-        <Button variant="contained" onClick={() => {
-          resetDialog();
-          setOpenDialog(true);
-        }}>Yeni Teklif Ekle</Button>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+          <CircularProgress size={40} sx={{ color: '#10b981' }} />
+      </Box>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ 
+      p: { xs: 2, sm: 3 },
+      pl: { xs: 2, sm: 3, md: 3 }, // Sidebar'a göre ayarlanmış sol padding
+      pr: { xs: 2, sm: 3, md: 3 },
+      width: '100%',
+      maxWidth: '100%',
+      overflow: 'hidden',
+      minHeight: '100vh',
+      backgroundColor: 'transparent'
+    }}>
+      {/* Page Header */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" sx={{ fontWeight: 700, color: '#1f2937', mb: 1 }}>
+          Teklif Yönetimi
+        </Typography>
+        <Typography variant="body1" sx={{ color: '#6b7280' }}>
+          Tekliflerinizi yönetin, düzenleyin ve takip edin
+        </Typography>
       </Box>
 
-      <TableContainer component={Paper}>
+      {/* Statistics Cards */}
+      <Box sx={{ 
+        display: 'grid', 
+        gridTemplateColumns: { 
+          xs: '1fr', 
+          sm: 'repeat(2, 1fr)', 
+          lg: 'repeat(3, 1fr)' 
+        },
+        gap: 3, 
+        mb: 4 
+      }}>
+        {statsData.map((stat, index) => (
+          <Box key={index}>
+            <Card 
+              sx={{ 
+                background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                border: '1px solid #e5e7eb',
+                borderRadius: 2,
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                },
+                transition: 'all 0.2s ease-in-out'
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography variant="body2" sx={{ color: '#6b7280', mb: 1 }}>
+                      {stat.title}
+                    </Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 700, color: '#1f2937', mb: 1 }}>
+                      {stat.value}
+                    </Typography>
+                    <Chip 
+                      label={stat.trend} 
+                      size="small" 
+                      sx={{ 
+                        backgroundColor: `${stat.color}20`,
+                        color: stat.color,
+                        fontWeight: 600,
+                        fontSize: '0.75rem'
+                      }} 
+                    />
+                  </Box>
+                  <Avatar 
+                    sx={{ 
+                      backgroundColor: `${stat.color}20`,
+                      color: stat.color,
+                      width: 56,
+                      height: 56
+                    }}
+                  >
+                    {stat.icon}
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
+        ))}
+      </Box>
+
+      {/* Action Bar */}
+      <Card sx={{ mb: 3, border: '1px solid #e5e7eb', borderRadius: 2 }}>
+        <CardContent sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+            <TextField
+              placeholder="Teklif ara..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: '#6b7280' }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                minWidth: 300,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  backgroundColor: '#f9fafb',
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#e5e7eb',
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#10b981',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#10b981',
+                    borderWidth: '2px',
+                  },
+                },
+              }}
+            />
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setIsCreateModalOpen(true)}
+              sx={{
+                backgroundColor: '#10b981',
+                borderRadius: 2,
+                px: 3,
+                py: 1.5,
+                fontWeight: 600,
+                textTransform: 'none',
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                '&:hover': {
+                  backgroundColor: '#059669',
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)',
+                },
+              }}
+            >
+              Yeni Teklif
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Main Table */}
+      <Card sx={{ border: '1px solid #e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
+        <TableContainer>
         <Table>
           <TableHead>
-            <TableRow>
-              <TableCell>Marka Adı</TableCell>
-              <TableCell>Durum</TableCell>
-              <TableCell>Geçerlilik Tarihi</TableCell>
-              <TableCell>Oluşturulma Tarihi</TableCell>
-              <TableCell>İşlemler</TableCell>
+              <TableRow sx={{ backgroundColor: '#f9fafb' }}>
+                <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
+                  Teklif
+                </TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
+                  Durum
+                </TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
+                  Tarih Bilgileri
+                </TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
+                  Toplam
+                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
+                  İşlemler
+                </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {loading ? (
+              {filteredOffers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} align="center">
-                  <Box sx={{ py: 4 }}>
-                    <CircularProgress />
+                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <LocalOfferIcon sx={{ fontSize: 48, color: '#9ca3af', mb: 2 }} />
+                      <Typography variant="h6" sx={{ color: '#6b7280', mb: 1 }}>
+                        {searchTerm ? 'Arama sonucu bulunamadı' : 'Henüz teklif eklenmemiş'}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#9ca3af' }}>
+                        {searchTerm ? 'Farklı arama terimleri deneyin' : 'İlk teklifinizi eklemek için "Yeni Teklif" butonuna tıklayın'}
+                      </Typography>
                   </Box>
                 </TableCell>
               </TableRow>
             ) : (
-              offers.map((offer) => (
-                <TableRow key={offer.id}>
-                  <TableCell>{offer.brandName}</TableCell>
-                  <TableCell>{offer.status}</TableCell>
-                  <TableCell>{new Date(offer.validUntil).toLocaleDateString()}</TableCell>
-                  <TableCell>{new Date(offer.createdAt).toLocaleDateString()}</TableCell>
-                  <TableCell>
-                    <IconButton onClick={() => handleEdit(offer)}><EditIcon /></IconButton>
-                    <IconButton onClick={() => handleDeleteClick(offer.id.toString())}><DeleteIcon /></IconButton>
-                    <Button onClick={() => handleDetailsClick(offer)} variant="outlined" startIcon={<ShoppingCartIcon />}>Detaylar</Button>
+                filteredOffers.map((offer, index) => (
+                  <TableRow 
+                    key={offer.id}
+                    sx={{ 
+                      '&:hover': { backgroundColor: '#f9fafb' },
+                      borderBottom: index === filteredOffers.length - 1 ? 'none' : '1px solid #e5e7eb'
+                    }}
+                  >
+                    <TableCell sx={{ py: 2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Avatar 
+                          sx={{ 
+                            backgroundColor: '#10b98120',
+                            color: '#10b981',
+                            width: 40,
+                            height: 40,
+                            fontWeight: 600
+                          }}
+                        >
+                          {offer.brandName?.charAt(0).toUpperCase() || 'T'}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="body1" sx={{ fontWeight: 600, color: '#1f2937' }}>
+                            {offer.brandName || 'Bilinmeyen Marka'}
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                            ID: {offer.id}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ py: 2 }}>
+                      <Chip 
+                        label={getStatusText(offer.status)} 
+                        size="small" 
+                        sx={{ 
+                          backgroundColor: `${getStatusColor(offer.status)}20`,
+                          color: getStatusColor(offer.status),
+                          fontWeight: 600,
+                          borderRadius: 2
+                        }} 
+                      />
+                    </TableCell>
+                    <TableCell sx={{ py: 2 }}>
+                      <Stack spacing={1}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" sx={{ color: '#374151', fontWeight: 500 }}>
+                            Oluşturulma: {new Date(offer.createdAt).toLocaleDateString('tr-TR')}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                            Geçerli: {new Date(offer.validUntil).toLocaleDateString('tr-TR')}
+                          </Typography>
+                        </Box>
+                      </Stack>
+                    </TableCell>
+                    <TableCell sx={{ py: 2 }}>
+                      <Typography variant="h6" sx={{ color: '#059669', fontWeight: 600 }}>
+                        ₺{offer.totalPrice?.toFixed(2) || '0.00'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="center" sx={{ py: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+                        <Tooltip title="Görüntüle">
+                          <IconButton 
+                            size="small"
+                            onClick={() => handleView(offer)}
+                            sx={{ 
+                              color: '#6b7280',
+                              '&:hover': { backgroundColor: '#f3f4f6', color: '#374151' }
+                            }}
+                          >
+                            <VisibilityIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        {offer.status === 'OFFER_SENT' && (
+                          <Tooltip title="Siparişe Çevir">
+                            <IconButton 
+                              size="small"
+                              onClick={() => handleConvertToOrder(offer)}
+                              sx={{ 
+                                color: '#1e3a8a',
+                                '&:hover': { backgroundColor: '#eff6ff', color: '#1d4ed8' }
+                              }}
+                            >
+                              <ShoppingCartIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        <Tooltip title="Düzenle">
+                          <IconButton 
+                            size="small"
+                            onClick={() => handleEdit(offer)}
+                            sx={{ 
+                              color: '#f97316',
+                              '&:hover': { backgroundColor: '#fef3e2', color: '#ea580c' }
+                            }}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Sil">
+                          <IconButton 
+                            size="small"
+                            onClick={() => handleDelete(offer.id.toString())}
+                            sx={{ 
+                              color: '#ef4444',
+                              '&:hover': { backgroundColor: '#fef2f2', color: '#dc2626' }
+                            }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
                   </TableCell>
                 </TableRow>
               ))
@@ -328,208 +680,858 @@ const Offers = () => {
           </TableBody>
         </Table>
       </TableContainer>
-      <Dialog
-        open={openDialog} 
-        onClose={() => {
-          resetDialog();
-          setOpenDialog(false);
-        }}
+      </Card>
+
+      {/* Floating Action Button for Mobile */}
+      <Fab
+        color="primary"
+        onClick={() => setIsCreateModalOpen(true)}
         sx={{
-          '& .MuiDialog-paper': {
-            width: '600px',
-            maxWidth: '90vw',
-            minHeight: '400px',
-            height: '60vh',
-            maxHeight: '90vh',
-            overflow: 'auto'
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          backgroundColor: '#10b981',
+          '&:hover': { backgroundColor: '#059669' },
+          display: { xs: 'flex', md: 'none' }
+        }}
+      >
+        <AddIcon />
+      </Fab>
+
+      {/* Edit Modal */}
+      <Dialog
+        open={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)',
           }
         }}
       >
-        <DialogTitle>{selectedOffer ? 'Teklifi Düzenle' : 'Yeni Teklif Ekle'}</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <FormControl fullWidth>
-              <InputLabel id="brand-select-label">Marka</InputLabel>
+        <DialogTitle
+        sx={{
+            pb: 2,
+            borderBottom: '1px solid #e5e7eb',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box
+              sx={{
+                backgroundColor: '#10b98120',
+                color: '#10b981',
+                borderRadius: 2,
+                p: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <EditIcon />
+            </Box>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937' }}>
+              Teklif Düzenle
+            </Typography>
+          </Box>
+          <IconButton onClick={() => setIsEditModalOpen(false)} sx={{ color: '#6b7280' }}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          {editOffer && (
+            <Box sx={{ display: 'grid', gap: 3 }}>
+              <FormControl fullWidth disabled>
+                <InputLabel id="edit-brand-select-label">Marka</InputLabel>
               <Select
-                labelId="brand-select-label"
-                value={newBrandName}
-                onChange={(e: SelectChangeEvent) => setNewBrandName(e.target.value)}
-                disabled={loadingBrands}
-              >
-                <MenuItem value="">Seçiniz</MenuItem>
+                  labelId="edit-brand-select-label"
+                  value={editOffer.brandId}
+                  label="Marka"
+                  sx={{
+                    borderRadius: 2,
+                    backgroundColor: '#f9fafb',
+                  }}
+                >
                 {brands.map((brand) => (
-                  <MenuItem key={brand.id} value={brand.name}>
+                    <MenuItem key={brand.id} value={brand.id}>
                     {brand.name}
                   </MenuItem>
                 ))}
               </Select>
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-                <IconButton
-                  onClick={addFormItem}
-                  size="medium"
+              </FormControl>
+              
+              {/* Items Section */}
+              <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6" sx={{ color: '#1f2937', fontWeight: 600 }}>
+                    Ürünler
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={addEditItem}
                   sx={{
-                    bgcolor: 'primary.main',
-                    color: 'white',
-                    borderRadius: '50%',
-                    width: 40,
-                    height: 40,
+                      borderColor: '#10b981',
+                      color: '#10b981',
                     '&:hover': {
-                      bgcolor: 'primary.dark'
+                        borderColor: '#059669',
+                        backgroundColor: '#10b98110'
                     }
                   }}
                 >
-                  +
-                </IconButton>
+                    Ürün Ekle
+                  </Button>
               </Box>
-            </FormControl>
-            <Box>
-              {formItems.map((item, index) => (
-                <Box key={index} sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                  <FormControl sx={{ flex: 1 }}>
-                    <InputLabel id={`product-select-label-${index}`}>Ürün</InputLabel>
+                
+                {editOffer.items.map((item, index) => (
+                  <Box key={index} sx={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: '2fr 1fr 1fr auto', 
+                    gap: 2, 
+                    alignItems: 'center',
+                    mb: 2,
+                    p: 2,
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 2,
+                    backgroundColor: '#f9fafb'
+                  }}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Ürün</InputLabel>
                     <Select
-                      labelId={`product-select-label-${index}`}
-                      id={`product-select-${index}`}
                       value={item.productId}
                       label="Ürün"
-                      onChange={(e) => updateFormItem(index, 'productId', e.target.value)}
-                      disabled={loadingProducts}
+                        onChange={(e) => updateEditItem(index, 'productId', Number(e.target.value))}
                     >
-                      <MenuItem value="0">Seçiniz</MenuItem>
                       {products.map((product) => (
                         <MenuItem key={product.id} value={product.id}>
-                          {product.name}
+                            {product.name} ({product.code})
                         </MenuItem>
                       ))}
                     </Select>
                   </FormControl>
+                    
                   <TextField
-                    sx={{ flex: 1 }}
+                      size="small"
                     label="Adet"
                     type="number"
                     value={item.quantity}
-                    onChange={(e) => updateFormItem(index, 'quantity', e.target.value)}
-                    InputProps={{ inputProps: { min: 0 } }}
+                      onChange={(e) => updateEditItem(index, 'quantity', parseInt(e.target.value) || 1)}
+                      inputProps={{ min: 1 }}
                   />
+                    
                   <TextField
-                    sx={{ flex: 1 }}
-                    label="Fiyat"
+                      size="small"
+                      label="Birim Fiyat"
                     type="number"
-                    value={item.price}
-                    onChange={(e) => updateFormItem(index, 'price', e.target.value)}
-                    InputProps={{ inputProps: { min: 0 } }}
-                  />
-                  {index > 0 && (
+                      value={item.unitPrice}
+                      onChange={(e) => updateEditItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                      inputProps={{ min: 0, step: 0.01 }}
+                    />
+                    
                     <IconButton
-                      onClick={() => removeFormItem(index)}
-                      sx={{
-                        bgcolor: 'error.main',
-                        color: 'white',
-                        borderRadius: '50%',
-                        width: 32,
-                        height: 32,
-                        '&:hover': {
-                          bgcolor: 'error.dark'
-                        }
-                      }}
+                      size="small"
+                      onClick={() => removeEditItem(index)}
+                      sx={{ color: '#ef4444' }}
                     >
-                      -
+                      <RemoveIcon />
                     </IconButton>
-                  )}
                 </Box>
               ))}
+                
+                {editOffer.items.length === 0 && (
+                  <Box sx={{ 
+                    textAlign: 'center', 
+                    py: 4, 
+                    color: '#6b7280',
+                    border: '2px dashed #e5e7eb',
+                    borderRadius: 2
+                  }}>
+                    <Typography variant="body2">
+                      Henüz ürün eklenmedi. "Ürün Ekle" butonuna tıklayın.
+                    </Typography>
             </Box>
+                )}
           </Box>
+
+              {/* Total Price Display */}
+              <Box sx={{ 
+                p: 2, 
+                backgroundColor: '#f0fdf4', 
+                borderRadius: 2,
+                border: '1px solid #10b981'
+              }}>
+                <Typography variant="h6" sx={{ color: '#059669', fontWeight: 600 }}>
+                  Toplam Fiyat: ₺{calculateEditTotalPrice().toFixed(2)}
+                </Typography>
+              </Box>
+              
+              <TextField
+                fullWidth
+                label="Geçerlilik Tarihi"
+                type="date"
+                value={editOffer.validUntil ? editOffer.validUntil.split('T')[0] : ''}
+                onChange={(e) => setEditOffer({
+                  ...editOffer,
+                  validUntil: e.target.value ? e.target.value + 'T23:59:59.000Z' : ''
+                })}
+                InputLabelProps={{
+                  shrink: true,
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#10b981',
+                    },
+                  },
+                  '& .MuiInputLabel-root.Mui-focused': {
+                    color: '#10b981',
+                  },
+                }}
+              />
+            </Box>
+          )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => {
-            resetDialog();
-            setOpenDialog(false);
-          }}>İptal</Button>
+        <DialogActions sx={{ p: 3, pt: 2 }}>
+          <Button 
+            onClick={() => {
+              setIsEditModalOpen(false);
+              setEditOffer(null);
+              setSelectedOffer(null);
+            }}
+            disabled={isUpdating}
+            sx={{ 
+              color: '#6b7280',
+              '&:hover': { backgroundColor: '#f3f4f6' }
+            }}
+          >
+            İptal
+          </Button>
           <Button 
             variant="contained" 
-            onClick={selectedOffer ? handleUpdateOffer : handleCreate}
-            disabled={!newBrandName.trim() || formItems.length === 0 || formItems.some(item => !item.productId || !item.quantity || !item.price)}
+            onClick={handleUpdate}
+            disabled={isUpdating || !editOffer || editOffer.items.length === 0 || !editOffer.validUntil || calculateEditTotalPrice() <= 0}
+            sx={{
+              backgroundColor: '#10b981',
+              '&:hover': { backgroundColor: '#059669' },
+              borderRadius: 2,
+              px: 3
+            }}
           >
-            {selectedOffer ? 'Güncelle' : 'Teklifi Oluştur'}
+            {isUpdating ? (
+              <>
+                <CircularProgress size={16} sx={{ color: 'white', mr: 1 }} />
+                Güncelleniyor...
+              </>
+            ) : (
+              'Güncelle'
+            )}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Silme Onayı */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Silme Onayı</DialogTitle>
-        <DialogContent>
-          <Typography variant="h6" color="error" align="center">
-            Silmek istediğinizden emin misiniz?
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>İptal</Button>
-          <Button variant="contained" color="error" onClick={handleConfirmDelete}>
-            Sil
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={!!deleteError} onClose={() => setDeleteError(null)}>
-        <DialogTitle>Hata</DialogTitle>
-        <DialogContent>
-          <Typography variant="h6" color="error" align="center">
-            {deleteError}
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteError(null)}>Tamam</Button>
-        </DialogActions>
-      </Dialog>
-
-      <Drawer
-        anchor="right"
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        sx={{ '& .MuiDrawer-paper': { width: '500px', borderRadius: '16px 0 0 16px', border: '1px solid', borderColor: 'divider', p: 2 } }}
+      {/* Convert to Order Modal */}
+      <Dialog
+        open={isOrderModalOpen}
+        onClose={() => setIsOrderModalOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)',
+          }
+        }}
       >
-        <Typography variant="h6" gutterBottom>Teklif Detayları</Typography>
-        <Divider sx={{ mb: 2 }} />
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle1">Marka Adı: <strong>{selectedQuote?.brandName || 'Yükleniyor...'}</strong></Typography>
-        </Box>
-        {selectedQuote?.items && (
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Ürün</TableCell>
-                  <TableCell>Adet</TableCell>
-                  <TableCell>Birim Fiyat</TableCell>
-                  <TableCell>Toplam</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {selectedQuote.items.map(item => (
-                  <TableRow key={item.productId}>
-                    <TableCell>{item.productName}</TableCell>
-                    <TableCell>{item.quantity}</TableCell>
-                    <TableCell>{item.unitPrice} ₺</TableCell>
-                    <TableCell>{item.lineTotal} ₺</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-        <Box sx={{ mt: 3, textAlign: 'right' }}>
-          <Button
-            onClick={convertToOrder}
-            variant="contained"
-            startIcon={convertingToOrder ? <CircularProgress size={20} /> : <ArrowForwardIcon />}
+        <DialogTitle
+          sx={{
+            pb: 2,
+            borderBottom: '1px solid #e5e7eb',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box
+              sx={{
+                backgroundColor: '#1e3a8a20',
+                color: '#1e3a8a',
+                borderRadius: 2,
+                p: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <ShoppingCartIcon />
+            </Box>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937' }}>
+              Siparişe Dönüştür
+          </Typography>
+          </Box>
+          <IconButton onClick={() => setIsOrderModalOpen(false)} sx={{ color: '#6b7280' }}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <Typography variant="body1" sx={{ color: '#374151', mb: 2 }}>
+            Bu teklifi siparişe dönüştürmek istediğinize emin misiniz?
+          </Typography>
+          {selectedOffer && (
+            <Box sx={{ 
+              backgroundColor: '#f9fafb', 
+              borderRadius: 2, 
+              p: 2,
+              border: '1px solid #e5e7eb'
+            }}>
+              <Typography variant="body2" sx={{ color: '#6b7280', mb: 1 }}>
+                Teklif Detayları:
+              </Typography>
+              <Typography variant="body1" sx={{ fontWeight: 600, color: '#1f2937', mb: 1 }}>
+                {selectedOffer.brandName} - ₺{selectedOffer.totalPrice.toFixed(2)}
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                {selectedOffer.items.length} ürün
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 2 }}>
+          <Button 
+            onClick={() => setIsOrderModalOpen(false)}
+            sx={{ 
+              color: '#6b7280',
+              '&:hover': { backgroundColor: '#f3f4f6' }
+            }}
             disabled={convertingToOrder}
           >
-            {convertingToOrder ? 'Siparişe Dönüştürülüyor...' : 'Siparişe Dönüştür'}
+            İptal
           </Button>
+          <Button
+            variant="contained"
+            onClick={confirmConvertToOrder}
+            disabled={convertingToOrder}
+            sx={{
+              backgroundColor: '#1e3a8a',
+              '&:hover': { backgroundColor: '#1d4ed8' },
+              borderRadius: 2,
+              px: 3
+            }}
+          >
+            {convertingToOrder ? 'Dönüştürülüyor...' : 'Siparişe Dönüştür'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* View Offer Modal */}
+      <Dialog
+        open={isViewModalOpen}
+        onClose={() => setIsViewModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)',
+          }
+        }}
+      >
+        <DialogTitle
+          sx={{
+            pb: 2,
+            borderBottom: '1px solid #e5e7eb',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box
+              sx={{
+                backgroundColor: '#6b728020',
+                color: '#6b7280',
+                borderRadius: 2,
+                p: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <VisibilityIcon />
+            </Box>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937' }}>
+              Teklif Detayları
+          </Typography>
+          </Box>
+          <IconButton onClick={() => setIsViewModalOpen(false)} sx={{ color: '#6b7280' }}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          {viewOffer && (
+            <Box sx={{ display: 'grid', gap: 3 }}>
+              {/* Basic Info */}
+              <Box sx={{ 
+                display: 'grid', 
+                gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, 
+                gap: 2,
+                p: 2,
+                backgroundColor: '#f9fafb',
+                borderRadius: 2,
+                border: '1px solid #e5e7eb'
+              }}>
+                <Box>
+                  <Typography variant="body2" sx={{ color: '#6b7280', mb: 1 }}>
+                    Marka
+                  </Typography>
+                  <Typography variant="h6" sx={{ color: '#1f2937', fontWeight: 600 }}>
+                    {viewOffer.brandName || 'Bilinmeyen Marka'}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="body2" sx={{ color: '#6b7280', mb: 1 }}>
+                    Durum
+                  </Typography>
+                  <Chip 
+                    label={getStatusText(viewOffer.status)} 
+                    size="small" 
+                    sx={{ 
+                      backgroundColor: `${getStatusColor(viewOffer.status)}20`,
+                      color: getStatusColor(viewOffer.status),
+                      fontWeight: 600,
+                      borderRadius: 2
+                    }} 
+                  />
+                </Box>
+                <Box>
+                  <Typography variant="body2" sx={{ color: '#6b7280', mb: 1 }}>
+                    Oluşturulma Tarihi
+                  </Typography>
+                  <Typography variant="body1" sx={{ color: '#1f2937' }}>
+                    {new Date(viewOffer.createdAt).toLocaleDateString('tr-TR')}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="body2" sx={{ color: '#6b7280', mb: 1 }}>
+                    Geçerlilik Tarihi
+                  </Typography>
+                  <Typography variant="body1" sx={{ color: '#1f2937' }}>
+                    {new Date(viewOffer.validUntil).toLocaleDateString('tr-TR')}
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Items List */}
+              <Box>
+                <Typography variant="h6" sx={{ color: '#1f2937', fontWeight: 600, mb: 2 }}>
+                  Ürünler ({viewOffer.items.length})
+                </Typography>
+                {viewOffer.items.length > 0 ? (
+                  <Box sx={{ display: 'grid', gap: 2 }}>
+                    {viewOffer.items.map((item, index) => {
+                      const product = products.find(p => p.id === item.productId);
+                      const lineTotal = item.quantity * item.unitPrice;
+                      return (
+                        <Box 
+                          key={index}
+                          sx={{ 
+                            display: 'grid', 
+                            gridTemplateColumns: { xs: '1fr', md: '2fr 1fr 1fr 1fr' }, 
+                            gap: 2, 
+                            alignItems: 'center',
+                            p: 2,
+                            border: '1px solid #e5e7eb',
+                            borderRadius: 2,
+                            backgroundColor: '#ffffff'
+                          }}
+                        >
+                          <Box>
+                            <Typography variant="body1" sx={{ fontWeight: 600, color: '#1f2937' }}>
+                              {product?.name || `Ürün ID: ${item.productId}`}
+                            </Typography>
+                            {product?.code && (
+                              <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                                Kod: {product.code}
+                              </Typography>
+                            )}
+                          </Box>
+                          <Box sx={{ textAlign: { xs: 'left', md: 'center' } }}>
+                            <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                              Adet
+                            </Typography>
+                            <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                              {item.quantity}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ textAlign: { xs: 'left', md: 'center' } }}>
+                            <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                              Birim Fiyat
+                            </Typography>
+                            <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                              ₺{item.unitPrice.toFixed(2)}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+                            <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                              Toplam
+                            </Typography>
+                            <Typography variant="body1" sx={{ fontWeight: 600, color: '#059669' }}>
+                              ₺{lineTotal.toFixed(2)}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                ) : (
+                  <Box sx={{ 
+                    textAlign: 'center', 
+                    py: 4, 
+                    color: '#6b7280',
+                    border: '2px dashed #e5e7eb',
+                    borderRadius: 2
+                  }}>
+                    <Typography variant="body2">
+                      Bu teklifte ürün bulunmuyor.
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+
+              {/* Total Price */}
+              <Box sx={{ 
+                p: 3, 
+                backgroundColor: '#f0fdf4', 
+                borderRadius: 2,
+                border: '1px solid #10b981',
+                textAlign: 'center'
+              }}>
+                <Typography variant="body2" sx={{ color: '#059669', mb: 1 }}>
+                  Toplam Teklif Tutarı
+                </Typography>
+                <Typography variant="h4" sx={{ color: '#059669', fontWeight: 700 }}>
+                  ₺{viewOffer.totalPrice.toFixed(2)}
+                </Typography>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 2 }}>
+          <Button 
+            onClick={() => setIsViewModalOpen(false)}
+            sx={{ 
+              color: '#6b7280',
+              '&:hover': { backgroundColor: '#f3f4f6' }
+            }}
+          >
+            Kapat
+          </Button>
+          {viewOffer?.status === 'OFFER_SENT' && (
+            <Button
+              variant="contained"
+              startIcon={<ShoppingCartIcon />}
+              onClick={() => {
+                setIsViewModalOpen(false);
+                if (viewOffer) {
+                  handleConvertToOrder(viewOffer);
+                }
+              }}
+              sx={{
+                backgroundColor: '#1e3a8a',
+                '&:hover': { backgroundColor: '#1d4ed8' },
+                borderRadius: 2,
+                px: 3
+              }}
+            >
+              Siparişe Dönüştür
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Create New Offer Modal */}
+      <Dialog
+        open={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1)',
+          }
+        }}
+      >
+        <DialogTitle
+          sx={{
+            pb: 2,
+            borderBottom: '1px solid #e5e7eb',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box
+              sx={{
+                backgroundColor: '#10b98120',
+                color: '#10b981',
+                borderRadius: 2,
+                p: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <LocalOfferIcon />
         </Box>
-      </Drawer>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937' }}>
+              Yeni Teklif Oluştur
+            </Typography>
+          </Box>
+          <IconButton onClick={() => setIsCreateModalOpen(false)} sx={{ color: '#6b7280' }}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <Box sx={{ display: 'grid', gap: 3 }}>
+            <FormControl fullWidth>
+              <InputLabel id="brand-select-label">Marka</InputLabel>
+              <Select
+                labelId="brand-select-label"
+                id="brand-select"
+                value={newOffer.brandId}
+                label="Marka"
+                onChange={(e) => setNewOffer({
+                  ...newOffer,
+                  brandId: Number(e.target.value)
+                })}
+                sx={{
+                  borderRadius: 2,
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#10b981',
+                  },
+                }}
+              >
+                {brands.map((brand) => (
+                  <MenuItem key={brand.id} value={brand.id}>
+                    {brand.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+                         {/* Items Section */}
+             <Box>
+               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                 <Typography variant="h6" sx={{ color: '#1f2937', fontWeight: 600 }}>
+                   Ürünler
+                 </Typography>
+                 <Button
+                   variant="outlined"
+                   size="small"
+                   startIcon={<AddIcon />}
+                   onClick={addItem}
+                   sx={{
+                     borderColor: '#10b981',
+                     color: '#10b981',
+                     '&:hover': {
+                       borderColor: '#059669',
+                       backgroundColor: '#10b98110'
+                     }
+                   }}
+                 >
+                   Ürün Ekle
+                 </Button>
+               </Box>
+               
+               {newOffer.items.map((item, index) => (
+                 <Box key={index} sx={{ 
+                   display: 'grid', 
+                   gridTemplateColumns: '2fr 1fr 1fr auto', 
+                   gap: 2, 
+                   alignItems: 'center',
+                   mb: 2,
+                   p: 2,
+                   border: '1px solid #e5e7eb',
+                   borderRadius: 2,
+                   backgroundColor: '#f9fafb'
+                 }}>
+                   <FormControl fullWidth size="small">
+                     <InputLabel>Ürün</InputLabel>
+                     <Select
+                       value={item.productId}
+                       label="Ürün"
+                       onChange={(e) => updateItem(index, 'productId', Number(e.target.value))}
+                     >
+                       {products.map((product) => (
+                         <MenuItem key={product.id} value={product.id}>
+                           {product.name} ({product.code})
+                         </MenuItem>
+                       ))}
+                     </Select>
+                   </FormControl>
+                   
+                   <TextField
+                     size="small"
+                     label="Adet"
+                     type="number"
+                     value={item.quantity}
+                     onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
+                     inputProps={{ min: 1 }}
+                   />
+                   
+                   <TextField
+                     size="small"
+                     label="Birim Fiyat"
+                     type="number"
+                     value={item.unitPrice}
+                     onChange={(e) => updateItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                     inputProps={{ min: 0, step: 0.01 }}
+                   />
+                   
+                   <IconButton
+                     size="small"
+                     onClick={() => removeItem(index)}
+                     sx={{ color: '#ef4444' }}
+                   >
+                     <RemoveIcon />
+                   </IconButton>
+                 </Box>
+               ))}
+               
+               {newOffer.items.length === 0 && (
+                 <Box sx={{ 
+                   textAlign: 'center', 
+                   py: 4, 
+                   color: '#6b7280',
+                   border: '2px dashed #e5e7eb',
+                   borderRadius: 2
+                 }}>
+                   <Typography variant="body2">
+                     Henüz ürün eklenmedi. "Ürün Ekle" butonuna tıklayın.
+                   </Typography>
+                 </Box>
+               )}
+             </Box>
+
+             {/* Total Price Display */}
+             <Box sx={{ 
+               p: 2, 
+               backgroundColor: '#f0fdf4', 
+               borderRadius: 2,
+               border: '1px solid #10b981'
+             }}>
+               <Typography variant="h6" sx={{ color: '#059669', fontWeight: 600 }}>
+                 Toplam Fiyat: ₺{calculateTotalPrice().toFixed(2)}
+               </Typography>
+             </Box>
+            
+                         <TextField
+               fullWidth
+               label="Geçerlilik Tarihi"
+               type="date"
+               value={newOffer.validUntil ? newOffer.validUntil.split('T')[0] : ''}
+               onChange={(e) => setNewOffer({
+                 ...newOffer,
+                 validUntil: e.target.value ? e.target.value + 'T23:59:59.000Z' : ''
+               })}
+               InputLabelProps={{
+                 shrink: true,
+               }}
+               sx={{
+                 '& .MuiOutlinedInput-root': {
+                   borderRadius: 2,
+                   '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                     borderColor: '#10b981',
+                   },
+                 },
+                 '& .MuiInputLabel-root.Mui-focused': {
+                   color: '#10b981',
+                 },
+               }}
+             />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 2 }}>
+          <Button
+             onClick={() => {
+               setIsCreateModalOpen(false);
+               setNewOffer({
+                 brandId: 0,
+                 status: 'OFFER_SENT' as const,
+                 totalPrice: 0,
+                 validUntil: '',
+                 items: [] as { productId: number; quantity: number; unitPrice: number; }[]
+               });
+             }}
+             disabled={isCreating}
+            sx={{ 
+              color: '#6b7280',
+              '&:hover': { backgroundColor: '#f3f4f6' }
+            }}
+          >
+            İptal
+          </Button>
+                     <Button
+            variant="contained"
+             onClick={() => {
+               const selectedBrand = brands.find(b => b.id === newOffer.brandId);
+               const totalPrice = calculateTotalPrice();
+               if (selectedBrand && newOffer.items.length > 0 && newOffer.validUntil && totalPrice > 0) {
+                 handleCreate({
+                   brandId: newOffer.brandId,
+                   status: newOffer.status,
+                   totalPrice: totalPrice,
+                   validUntil: newOffer.validUntil,
+                   items: newOffer.items,
+                   brandName: selectedBrand.name
+                 });
+                 setNewOffer({
+                   brandId: 0,
+                   status: 'OFFER_SENT' as const,
+                   totalPrice: 0,
+                   validUntil: '',
+                   items: [] as { productId: number; quantity: number; unitPrice: number; }[]
+                 });
+               }
+             }}
+             disabled={isCreating || !newOffer.brandId || newOffer.items.length === 0 || !newOffer.validUntil || calculateTotalPrice() <= 0}
+             sx={{
+               backgroundColor: '#10b981',
+               '&:hover': { backgroundColor: '#059669' },
+               borderRadius: 2,
+               px: 3
+             }}
+           >
+             {isCreating ? (
+               <>
+                 <CircularProgress size={16} sx={{ color: 'white', mr: 1 }} />
+                 Oluşturuluyor...
+               </>
+             ) : (
+               'Teklif Oluştur'
+             )}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={confirmDeleteOffer}
+        title="Teklif Silme Onayı"
+        message="Bu teklifi silmek istediğinize emin misiniz?"
+        loading={isDeleting}
+        confirmText={isDeleting ? 'Siliniyor...' : 'Sil'}
+      />
     </Box>
   );
 };

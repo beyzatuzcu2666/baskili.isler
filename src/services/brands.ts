@@ -29,7 +29,7 @@ export const brandsService = {
 
   async updateBrand(brandId: number, brandData: Omit<Brand, 'id'>): Promise<Brand> {
     try {
-      const response = await http.put(`/brands/${brandId}`, brandData);
+      const response = await http.patch(`/brands/${brandId}`, brandData);
       return response.data;
     } catch (error) {
       console.error('Error updating brand:', error);
