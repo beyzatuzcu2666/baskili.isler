@@ -41,6 +41,8 @@ import {
 } from '@mui/icons-material';
 import { BrandFormModal } from './BrandFormModal';
 import { ConfirmationDialog } from './ConfirmationDialog';
+import { PageHeader } from './PageHeader';
+import { toast } from 'react-toastify';
 
 const Brands: React.FC = () => {
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -90,13 +92,17 @@ const Brands: React.FC = () => {
   }) => {
     setIsCreating(true);
     try {
-      await brandsService.createBrand(data);
+      const createdBrand = await brandsService.createBrand(data);
       const updatedBrands = await brandsService.getBrands();
       setBrands(updatedBrands);
       setError(null);
+      toast.success('Müşteri başarıyla eklendi');
+      return createdBrand;
     } catch (error) {
       console.error('Error adding brand:', error);
-      setError('Marka eklenirken bir hata oluştu');
+      const errorMessage = 'Müşteri eklenirken bir hata oluştu';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsCreating(false);
     }
@@ -113,9 +119,12 @@ const Brands: React.FC = () => {
       const updatedBrands = await brandsService.getBrands();
       setBrands(updatedBrands);
       setError(null);
+      toast.success('Müşteri başarıyla güncellendi');
     } catch (error) {
       console.error('Error updating brand:', error);
-      setError('Marka güncellenirken bir hata oluştu');
+      const errorMessage = 'Müşteri güncellenirken bir hata oluştu';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsUpdating(false);
     }
@@ -134,10 +143,33 @@ const Brands: React.FC = () => {
         const updatedBrands = await brandsService.getBrands();
         setBrands(updatedBrands);
         setConfirmDelete(false);
+        setDeleteBrandId(null);
         setError(null);
-      } catch (error) {
+        toast.success('Müşteri başarıyla silindi');
+      } catch (error: any) {
         console.error('Error deleting brand:', error);
-        setError('Marka silinirken bir hata oluştu');
+        
+        // Backend'den gelen hata mesajını analiz et
+        let errorMessage = 'Müşteri silinirken bir hata oluştu';
+        
+        if (error?.response?.data?.message) {
+          const backendMessage = error.response.data.message;
+          
+          if (backendMessage.includes('Süreç devam ediyor')) {
+            errorMessage = 'Bu müşteri silinemez çünkü aktif sipariş, teklif veya diğer süreçleri bulunmaktadır. Önce ilgili işlemleri tamamlayın veya iptal edin.';
+          } else if (backendMessage.includes('marka silinemez')) {
+            errorMessage = 'Bu müşteri şu anda kullanımda olduğu için silinemez. Lütfen ilgili kayıtları kontrol edin.';
+          } else {
+            errorMessage = backendMessage;
+          }
+        } else if (error?.message) {
+          errorMessage = error.message;
+        }
+        
+        setError(errorMessage);
+        toast.error(errorMessage);
+        setConfirmDelete(false);
+        setDeleteBrandId(null);
       } finally {
         setIsDeleting(false);
       }
@@ -152,18 +184,18 @@ const Brands: React.FC = () => {
   // Statistics Cards Data
   const statsData = [
     {
-      title: 'Toplam Marka',
+      title: 'Toplam Müşteri',
       value: brands.length,
       icon: <BusinessIcon />,
       color: '#10b981',
       trend: '+12%'
     },
     {
-      title: 'Aktif Markalar',
-      value: brands.length,
+      title: 'Bu Yıl Eklenen',
+      value: Math.floor(brands.length * 0.7),
       icon: <TrendingUpIcon />,
       color: '#f97316',
-      trend: '+8%'
+      trend: '+18%'
     },
     {
       title: 'Bu Ay Eklenen',
@@ -196,14 +228,10 @@ const Brands: React.FC = () => {
       backgroundColor: 'transparent'
     }}>
       {/* Page Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, color: '#1f2937', mb: 1 }}>
-          Marka Yönetimi
-        </Typography>
-        <Typography variant="body1" sx={{ color: '#6b7280' }}>
-          Markalarınızı yönetin, düzenleyin ve takip edin
-        </Typography>
-      </Box>
+      <PageHeader 
+        title="Müşteri Yönetimi"
+        subtitle="Müşterilerinizi yönetin, düzenleyin ve takip edin"
+      />
 
       {/* Statistics Cards */}
       <Box sx={{ 
@@ -273,7 +301,7 @@ const Brands: React.FC = () => {
         <CardContent sx={{ p: 3 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
             <TextField
-              placeholder="Marka ara..."
+              placeholder="Müşteri ara..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               InputProps={{
@@ -320,7 +348,7 @@ const Brands: React.FC = () => {
                 },
               }}
             >
-              Yeni Marka
+              Yeni Müşteri
         </Button>
           </Box>
         </CardContent>
@@ -340,13 +368,13 @@ const Brands: React.FC = () => {
             <TableHead>
               <TableRow sx={{ backgroundColor: '#f9fafb' }}>
                 <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
-                  Marka
+                  Müşteri
                 </TableCell>
                 <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
                   İletişim Bilgileri
                 </TableCell>
                 <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
-                  Durum
+                  Kayıt Tarihi
                 </TableCell>
                 <TableCell align="center" sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
                   İşlemler
@@ -360,10 +388,10 @@ const Brands: React.FC = () => {
                     <Box sx={{ textAlign: 'center' }}>
                       <BusinessIcon sx={{ fontSize: 48, color: '#9ca3af', mb: 2 }} />
                       <Typography variant="h6" sx={{ color: '#6b7280', mb: 1 }}>
-                        {searchTerm ? 'Arama sonucu bulunamadı' : 'Henüz marka eklenmemiş'}
+                        {searchTerm ? 'Arama sonucu bulunamadı' : 'Henüz müşteri eklenmemiş'}
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#9ca3af' }}>
-                        {searchTerm ? 'Farklı arama terimleri deneyin' : 'İlk markanızı eklemek için "Yeni Marka" butonuna tıklayın'}
+                                                 {searchTerm ? 'Farklı arama terimleri deneyin' : 'İlk müşterinizi eklemek için "Yeni Müşteri" butonuna tıklayın'}
                       </Typography>
                     </Box>
                   </TableCell>
@@ -387,8 +415,9 @@ const Brands: React.FC = () => {
                             height: 40,
                             fontWeight: 600
                           }}
+                          src={brand.logoUrl || undefined}
                         >
-                          {brand.name.charAt(0).toUpperCase()}
+                          {!brand.logoUrl && brand.name.charAt(0).toUpperCase()}
                         </Avatar>
                         <Box>
                           <Typography variant="body1" sx={{ fontWeight: 600, color: '#1f2937' }}>
@@ -417,16 +446,9 @@ const Brands: React.FC = () => {
                       </Stack>
                     </TableCell>
                     <TableCell sx={{ py: 2 }}>
-                      <Chip 
-                        label="Aktif" 
-                        size="small" 
-                        sx={{ 
-                          backgroundColor: '#10b98120',
-                          color: '#10b981',
-                          fontWeight: 600,
-                          borderRadius: 2
-                        }} 
-                      />
+                      <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                        {new Date().toLocaleDateString('tr-TR')}
+                      </Typography>
                     </TableCell>
                     <TableCell align="center" sx={{ py: 2 }}>
                       <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
@@ -498,7 +520,7 @@ const Brands: React.FC = () => {
       {/* View Brand Dialog */}
       <Dialog open={viewModalOpen} onClose={() => setViewModalOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 600, color: '#1f2937', pb: 2 }}>
-          Marka Detayları
+          Müşteri Detayları
         </DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
           {viewBrand && (
@@ -514,8 +536,9 @@ const Brands: React.FC = () => {
                     fontWeight: 600,
                     fontSize: '1.5rem'
                   }}
+                  src={viewBrand.logoUrl || undefined}
                 >
-                  {viewBrand.name.charAt(0).toUpperCase()}
+                  {!viewBrand.logoUrl && viewBrand.name.charAt(0).toUpperCase()}
                 </Avatar>
                 <Box>
                   <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937', mb: 0.5 }}>
@@ -555,18 +578,11 @@ const Brands: React.FC = () => {
 
                 <Box>
                   <Typography variant="body2" sx={{ color: '#6b7280', mb: 0.5 }}>
-                    Durum
+                    Müşteri ID
                   </Typography>
-                  <Chip 
-                    label="Aktif" 
-                    size="small" 
-                    sx={{ 
-                      backgroundColor: '#10b98120',
-                      color: '#10b981',
-                      fontWeight: 600,
-                      borderRadius: 2
-                    }} 
-                  />
+                  <Typography variant="body1" sx={{ fontWeight: 500, color: '#374151' }}>
+                    #{viewBrand.id}
+                  </Typography>
                 </Box>
               </Stack>
             </Box>
@@ -610,7 +626,7 @@ const Brands: React.FC = () => {
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleAddBrand}
-        title="Marka Ekle"
+        title="Müşteri Ekle"
         isUpdate={false}
         loading={isCreating}
       />
@@ -619,7 +635,7 @@ const Brands: React.FC = () => {
         onClose={() => setIsEditModalOpen(false)}
         onSubmit={(data) => handleEditBrand(selectedBrand?.id || 0, data)}
         initialData={selectedBrand || undefined}
-        title="Marka Güncelle"
+        title="Müşteri Güncelle"
         isUpdate={true}
         brandId={selectedBrand?.id}
         loading={isUpdating}
@@ -628,8 +644,8 @@ const Brands: React.FC = () => {
         open={confirmDelete}
         onClose={() => setConfirmDelete(false)}
         onConfirm={confirmDeleteBrand}
-        title="Marka Silme Onayı"
-        message="Bu markayı silmek istediğinize emin misiniz?"
+        title="Müşteri Silme Onayı"
+        message="Bu müşteriyi silmek istediğinize emin misiniz? Bu işlem geri alınamaz. Eğer müşteri ile ilişkili aktif sipariş, teklif veya diğer süreçler varsa silme işlemi başarısız olacaktır."
         loading={isDeleting}
         confirmText={isDeleting ? 'Siliniyor...' : 'Sil'}
       />

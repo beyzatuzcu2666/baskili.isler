@@ -8,6 +8,7 @@ export interface Order {
   brand: {
     id: number;
     name: string;
+    logoUrl?: string;
   };
   factory?: {
     id: number;

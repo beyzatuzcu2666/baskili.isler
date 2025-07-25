@@ -1,6 +1,14 @@
 import { authService } from './auth';
+import { toast } from 'react-toastify';
 
 const BASE_URL = 'https://baskili-isler-backend.onrender.com';
+
+// 401 hatası kontrolü ve logout işlemi
+const handleUnauthorized = () => {
+  authService.logout();
+  toast.error('Oturum süreniz doldu. Lütfen tekrar giriş yapın.');
+  window.location.href = '/login';
+};
 
 export const http = {
   async get<T = any>(endpoint: string): Promise<T> {
@@ -19,6 +27,10 @@ export const http = {
       });
       
       if (!response.ok) {
+        if (response.status === 401) {
+          handleUnauthorized();
+          throw new Error('Unauthorized');
+        }
         const errorData = await response.json().catch(() => ({}));
         throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || 'Unknown error'}`);
       }
@@ -50,6 +62,10 @@ export const http = {
       });
       
       if (!response.ok) {
+        if (response.status === 401) {
+          handleUnauthorized();
+          throw new Error('Unauthorized');
+        }
         const errorData = await response.json().catch(() => ({}));
         throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || 'Unknown error'}`);
       }
@@ -66,25 +82,33 @@ export const http = {
   async patch<T = any>(endpoint: string, data: any): Promise<T> {
     try {
       const headers = new Headers();
-      headers.set('Content-Type', 'application/json');
-      headers.set('Accept', 'application/json');
-      
+      let body;
+      if (data instanceof FormData) {
+        // Content-Type header'ı eklenmez, fetch otomatik ayarlar
+        body = data;
+        headers.set('Accept', 'application/json');
+      } else {
+        headers.set('Content-Type', 'application/json');
+        headers.set('Accept', 'application/json');
+        body = JSON.stringify(data);
+      }
       const token = authService.getToken();
       if (token) {
         headers.set('Authorization', `Bearer ${token}`);
       }
-      
       const response = await fetch(`${BASE_URL}${endpoint}`, {
         method: 'PATCH',
         headers,
-        body: JSON.stringify(data)
+        body
       });
-      
       if (!response.ok) {
+        if (response.status === 401) {
+          handleUnauthorized();
+          throw new Error('Unauthorized');
+        }
         const errorData = await response.json().catch(() => ({}));
         throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || 'Unknown error'}`);
       }
-      
       return await response.json();
     } catch (error) {
       if (error instanceof Error) {
@@ -112,6 +136,10 @@ export const http = {
       });
       
       if (!response.ok) {
+        if (response.status === 401) {
+          handleUnauthorized();
+          throw new Error('Unauthorized');
+        }
         const errorData = await response.json().catch(() => ({}));
         throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || 'Unknown error'}`);
       }
@@ -141,6 +169,10 @@ export const http = {
       });
       
       if (!response.ok) {
+        if (response.status === 401) {
+          handleUnauthorized();
+          throw new Error('Unauthorized');
+        }
         const errorData = await response.json().catch(() => ({}));
         throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || 'Unknown error'}`);
       }

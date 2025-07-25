@@ -41,16 +41,21 @@ import {
   Visibility as VisibilityIcon,
   ShoppingCart as ShoppingCartIcon,
   Close as CloseIcon,
-  Remove as RemoveIcon
+  Remove as RemoveIcon,
+  Person as PersonIcon,
+  Inventory as InventoryIcon
 } from '@mui/icons-material';
 import { Offer } from '../types/offer';
 import { Brand } from '../types/brand';
-import { Product } from '../types/product';
+import { Product, getUnitDisplayName, Unit, ProductCreateDto } from '../types/product';
 import { offersService } from '../services/offers';
 import { ordersService } from '../services/orders';
 import { brandsService } from '../services/brands';
 import { productsService } from '../services/products';
 import { ConfirmationDialog } from './ConfirmationDialog';
+import { BrandFormModal } from './BrandFormModal';
+import { toast } from 'react-toastify';
+import { jsPDF } from 'jspdf';
 
 const Offers = () => {
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -59,6 +64,7 @@ const Offers = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteOfferId, setDeleteOfferId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -71,19 +77,35 @@ const Offers = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [viewOffer, setViewOffer] = useState<Offer | null>(null);
+  
+  // Yeni modal'lar için state'ler
+  const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [isCreatingBrand, setIsCreatingBrand] = useState(false);
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
+  
+  // Product form state'i
+  const [productForm, setProductForm] = useState({
+    name: '',
+    description: '',
+    unit: Unit.ADET,
+    unitPrice: 0,
+    taxRate: 18
+  });
+  
   const [editOffer, setEditOffer] = useState<{
     brandId: number;
     status: string;
     totalPrice: number;
     validUntil: string;
-    items: { productId: number; quantity: number; unitPrice: number; }[];
+    items: { productId: number; quantity: number; unitPrice: number; taxRate: number; }[];
   } | null>(null);
   const [newOffer, setNewOffer] = useState({
     brandId: 0,
     status: 'OFFER_SENT' as const,
     totalPrice: 0,
     validUntil: '',
-    items: [] as { productId: number; quantity: number; unitPrice: number; }[]
+    items: [] as { productId: number; quantity: number; unitPrice: number; taxRate: number; }[]
   });
 
   useEffect(() => {
@@ -108,12 +130,27 @@ const Offers = () => {
     } catch (error) {
       console.error('Error loading products:', error);
     }
-  };
+      };
 
-  const filteredOffers = offers.filter(offer =>
-    offer.brandName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    offer.status?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredOffers = offers.filter(offer => {
+    const matchesSearch = offer.brandName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         offer.status?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    let matchesStatus = false;
+    if (statusFilter === 'all') {
+      matchesStatus = true;
+    } else if (statusFilter === 'OFFER_SENT') {
+      matchesStatus = offer.status === 'OFFER_SENT';
+    } else if (statusFilter === 'OFFER_ACCEPTED') {
+      matchesStatus = offer.status === 'OFFER_ACCEPTED' || offer.status === 'ACCEPTED';
+    } else if (statusFilter === 'OFFER_REJECTED') {
+      matchesStatus = offer.status === 'OFFER_REJECTED' || offer.status === 'REJECTED';
+    }
+    
+
+    
+    return matchesSearch && matchesStatus;
+  });
 
   const loadOffers = async () => {
     try {
@@ -133,6 +170,49 @@ const Offers = () => {
     setIsViewModalOpen(true);
   };
 
+  // Yeni müşteri oluşturma fonksiyonu
+  const handleCreateBrand = async (data: {
+    name: string;
+    contactEmail: string;
+    contactPhone: string;
+  }) => {
+    setIsCreatingBrand(true);
+    try {
+      await brandsService.createBrand(data);
+      await loadBrands(); // Müşteri listesini yenile
+      setIsBrandModalOpen(false);
+      toast.success('Müşteri başarıyla oluşturuldu');
+    } catch (error) {
+      console.error('Error creating brand:', error);
+      toast.error('Müşteri oluşturulurken bir hata oluştu');
+    } finally {
+      setIsCreatingBrand(false);
+    }
+  };
+
+  // Yeni ürün oluşturma fonksiyonu
+  const handleCreateProduct = async (data: ProductCreateDto) => {
+    setIsCreatingProduct(true);
+    try {
+      await productsService.create(data);
+      await loadProducts(); // Ürün listesini yenile
+      setIsProductModalOpen(false);
+      setProductForm({
+        name: '',
+        description: '',
+        unit: Unit.ADET,
+        unitPrice: 0,
+        taxRate: 18
+      });
+      toast.success('Ürün başarıyla oluşturuldu');
+    } catch (error) {
+      console.error('Error creating product:', error);
+      toast.error('Ürün oluşturulurken bir hata oluştu');
+    } finally {
+      setIsCreatingProduct(false);
+    }
+  };
+
   const handleEdit = (offer: Offer) => {
     setSelectedOffer(offer);
     setEditOffer({
@@ -140,19 +220,22 @@ const Offers = () => {
       status: offer.status,
       totalPrice: offer.totalPrice,
       validUntil: offer.validUntil,
-      items: [...offer.items]
+      items: offer.items.map(item => ({
+        ...item,
+        taxRate: item.taxRate || 18 // Eğer taxRate yoksa varsayılan 18 kullan
+      }))
     });
     setIsEditModalOpen(true);
   };
 
   const handleUpdate = async () => {
     if (!selectedOffer || !editOffer) return;
-    
+
     setIsUpdating(true);
     try {
       const updatedData = {
         brandId: editOffer.brandId,
-        totalPrice: calculateEditTotalPrice(),
+        totalPrice: editOffer.totalPrice,
         validUntil: editOffer.validUntil,
         items: editOffer.items
       };
@@ -187,64 +270,121 @@ const Offers = () => {
   };
 
   const addItem = () => {
+    const updatedItems = [...newOffer.items, { productId: 0, quantity: 1, unitPrice: 0, taxRate: 18 }];
+    const newTotalPrice = updatedItems.reduce((total, item) => {
+      const lineTotal = item.quantity * item.unitPrice;
+      const taxAmount = lineTotal * (item.taxRate / 100);
+      return total + lineTotal + taxAmount;
+    }, 0);
+    
     setNewOffer({
       ...newOffer,
-      items: [...newOffer.items, { productId: 0, quantity: 1, unitPrice: 0 }]
+      items: updatedItems,
+      totalPrice: newTotalPrice
     });
   };
 
   const removeItem = (index: number) => {
     const updatedItems = newOffer.items.filter((_, i) => i !== index);
+    const newTotalPrice = updatedItems.reduce((total, item) => {
+      const lineTotal = item.quantity * item.unitPrice;
+      const taxAmount = lineTotal * (item.taxRate / 100);
+      return total + lineTotal + taxAmount;
+    }, 0);
+    
     setNewOffer({
       ...newOffer,
-      items: updatedItems
+      items: updatedItems,
+      totalPrice: newTotalPrice
     });
   };
 
-  const updateItem = (index: number, field: 'productId' | 'quantity' | 'unitPrice', value: number) => {
+  const updateItem = (index: number, field: 'productId' | 'quantity' | 'unitPrice' | 'taxRate', value: number) => {
     const updatedItems = [...newOffer.items];
     updatedItems[index] = { ...updatedItems[index], [field]: value };
+    
+    // Ürün seçildiğinde varsayılan KDV'yi set et
+    if (field === 'productId' && value > 0) {
+      const selectedProduct = products.find(p => p.id === value);
+      if (selectedProduct) {
+        updatedItems[index].taxRate = selectedProduct.taxRate;
+      }
+    }
+    
+    // Toplam fiyatı güncelle
+    const newTotalPrice = updatedItems.reduce((total, item) => {
+      const lineTotal = item.quantity * item.unitPrice;
+      const taxAmount = lineTotal * (item.taxRate / 100);
+      return total + lineTotal + taxAmount;
+    }, 0);
+    
     setNewOffer({
       ...newOffer,
-      items: updatedItems
+      items: updatedItems,
+      totalPrice: newTotalPrice
     });
   };
 
   const addEditItem = () => {
     if (!editOffer) return;
+    const updatedItems = [...editOffer.items, { productId: 0, quantity: 1, unitPrice: 0, taxRate: 18 }];
+    const newTotalPrice = updatedItems.reduce((total, item) => {
+      const lineTotal = item.quantity * item.unitPrice;
+      const taxAmount = lineTotal * (item.taxRate / 100);
+      return total + lineTotal + taxAmount;
+    }, 0);
+    
     setEditOffer({
       ...editOffer,
-      items: [...editOffer.items, { productId: 0, quantity: 1, unitPrice: 0 }]
+      items: updatedItems,
+      totalPrice: newTotalPrice
     });
   };
 
   const removeEditItem = (index: number) => {
     if (!editOffer) return;
     const updatedItems = editOffer.items.filter((_, i) => i !== index);
+    const newTotalPrice = updatedItems.reduce((total, item) => {
+      const lineTotal = item.quantity * item.unitPrice;
+      const taxAmount = lineTotal * (item.taxRate / 100);
+      return total + lineTotal + taxAmount;
+    }, 0);
+    
     setEditOffer({
       ...editOffer,
-      items: updatedItems
+      items: updatedItems,
+      totalPrice: newTotalPrice
     });
   };
 
-  const updateEditItem = (index: number, field: 'productId' | 'quantity' | 'unitPrice', value: number) => {
+  const updateEditItem = (index: number, field: 'productId' | 'quantity' | 'unitPrice' | 'taxRate', value: number) => {
     if (!editOffer) return;
     const updatedItems = [...editOffer.items];
     updatedItems[index] = { ...updatedItems[index], [field]: value };
+    
+    // Ürün seçildiğinde varsayılan KDV'yi set et
+    if (field === 'productId' && value > 0) {
+      const selectedProduct = products.find(p => p.id === value);
+      if (selectedProduct) {
+        updatedItems[index].taxRate = selectedProduct.taxRate;
+      }
+    }
+    
+    // Toplam fiyatı güncelle
+    const newTotalPrice = updatedItems.reduce((total, item) => {
+      const lineTotal = item.quantity * item.unitPrice;
+      const taxAmount = lineTotal * (item.taxRate / 100);
+      return total + lineTotal + taxAmount;
+    }, 0);
+    
     setEditOffer({
       ...editOffer,
-      items: updatedItems
+      items: updatedItems,
+      totalPrice: newTotalPrice
     });
   };
 
-  const calculateTotalPrice = () => {
-    return newOffer.items.reduce((total, item) => total + (item.quantity * item.unitPrice), 0);
-  };
 
-  const calculateEditTotalPrice = () => {
-    if (!editOffer) return 0;
-    return editOffer.items.reduce((total, item) => total + (item.quantity * item.unitPrice), 0);
-  };
 
   const handleDelete = async (id: string) => {
     setDeleteOfferId(id);
@@ -277,7 +417,7 @@ const Offers = () => {
     const confirmConvertToOrder = async () => {
     if (!selectedOffer) return;
     
-    setConvertingToOrder(true);
+      setConvertingToOrder(true);
     try {
       // Convert offer to order using the correct endpoint
       // Swagger'da belirtilen /orders/accept endpoint'ini kullan
@@ -286,7 +426,7 @@ const Offers = () => {
         // Her item için 30 gün sonraki tarih
         itemDeadlines[item.productId.toString()] = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       });
-      
+
       await ordersService.acceptOffer(selectedOffer.id.toString(), itemDeadlines);
       
       await loadOffers(); // Reload offers
@@ -335,14 +475,142 @@ const Offers = () => {
     }
   };
 
+  const generatePDF = (offer: Offer) => {
+    const doc = new jsPDF();
+    
+    // Türkçe karakterler için font ayarları
+    doc.setFont('helvetica');
+    doc.setLanguage('tr');
+    
+
+    
+
+    
+    // Logo ve şirket bilgileri (sol üst)
+    // Mavi logo yazısı kaldırıldı
+    
+    doc.setFontSize(10);
+    doc.setTextColor(31, 41, 55);
+    doc.text('www.baskiliisler.com', 20, 40);
+    doc.text('Ornek Mah. Baku Sok. No:38/1B Atasehir / Istanbul', 20, 45);
+    
+    // Başlık (sağ üst)
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(31, 41, 55);
+    doc.text('TEKLIF FORMU', 105, 30, { align: 'center' });
+    
+    // Tarih bilgileri (sağ üst)
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const currentDate = new Date().toLocaleDateString('tr-TR');
+    const validUntil = new Date(offer.validUntil).toLocaleDateString('tr-TR');
+    doc.text(`Tarih: ${currentDate}`, 150, 40);
+    doc.text(`Gecerlilik: ${validUntil}`, 150, 45);
+    
+    // Müşteri bilgisi (dinamik)
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    const customerName = offer.brandName || 'Bilinmeyen Müşteri';
+    doc.text(customerName, 20, 70);
+    
+
+    
+    // Basit tablo oluşturma (autoTable olmadan)
+    let currentY = 80;
+    
+    // Tablo başlıkları
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Aciklama', 20, currentY);
+    doc.text('Miktar', 100, currentY);
+    doc.text('Fiyat', 130, currentY);
+    doc.text('KDV (%)', 160, currentY);
+    doc.text('Tutar', 180, currentY);
+    
+    currentY += 10;
+    
+    // Tablo verileri
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    offer.items.forEach((item, index) => {
+      const product = products.find(p => p.id === item.productId);
+      const lineTotal = item.quantity * item.unitPrice;
+      
+      // Debug: Ürün adını kontrol et
+      console.log('Product ID:', item.productId);
+      console.log('Found Product:', product);
+      console.log('Product Name:', product?.name);
+      
+      const productName = product?.name || 'Bilinmeyen Ürün';
+      doc.text(`${index + 1}. ${productName}`, 20, currentY);
+      doc.text(`${item.quantity} ${product?.unit || 'ad'}`, 100, currentY);
+      doc.text(`${item.unitPrice.toFixed(2)} TL`, 130, currentY);
+      doc.text(`%${item.taxRate}`, 160, currentY);
+      doc.text(`${lineTotal.toFixed(2)} TL`, 180, currentY);
+      
+      currentY += 8;
+    });
+    
+    // Toplam hesaplamaları
+    const netTotal = offer.items.reduce((total, item) => total + (item.quantity * item.unitPrice), 0);
+    const taxTotal = offer.items.reduce((total, item) => {
+      const lineTotal = item.quantity * item.unitPrice;
+      return total + (lineTotal * item.taxRate / 100);
+    }, 0);
+    const grandTotal = netTotal + taxTotal;
+    
+    const finalY = currentY + 10;
+    
+    // Toplam bilgileri (sağ taraf)
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Net ${netTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`, 150, finalY);
+    doc.text(`KDV (%${offer.items[0]?.taxRate || 18}) ${taxTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`, 150, finalY + 5);
+    doc.text(`Toplam ${grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`, 150, finalY + 10);
+    
+    // Şartlar ve koşullar
+    const termsY = finalY + 25;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('TESLIMAT GRAFIK ONAYINDAN SONRA 14 IS GUNUDUR.', 20, termsY);
+    doc.text('KARTON BARDAK CESITLERINDE KLISE BEDELI YOKTUR.', 20, termsY + 5);
+    doc.text('ISLAK MENDIL- PECETE- SEKER- SOGUK BARDAKLARIN KLISE BEDELI RENK BASI 1.000 TL.', 20, termsY + 10);
+    doc.text('CANTA, YAGLI KAGIT, KESE KAGITLARI VE CESITLERINDE KLISE BEDELI OLÇUYE GORE DEGISIKLIK GOSTEREBILIR.', 20, termsY + 15);
+    doc.text('TUM URUNLERIMIZ GIDA KULLANIMINA UYGUNDUR HALK SAGLIGI IZINLERI MEVCUTTUR.IHRACAT ICIN UYGUNDUR', 20, termsY + 20);
+    
+    // Banka bilgileri
+    const bankY = termsY + 35;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('HESAP BILGILERIMIZ:', 20, bankY);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('AKBANK -- TR 22 0004 6002 9788 8000 1389 30', 20, bankY + 5);
+    doc.text('BASKILI ISLER', 20, bankY + 10);
+    
+    // Kapanış mesajı
+    const closingY = bankY + 20;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TEKLIFIMIZ ILE ILGILI SORULARINIZI CEVAPLAMAYA HAZIR OLDUGUMUZU BELIRTIR, CALISMALARINIZDA BASARILAR DILERIZ.', 20, closingY);
+    doc.text('Saygilarimizla,', 20, closingY + 5);
+    
+    // PDF'i indir
+    const fileName = `Teklif_${customerName.replace(/\s+/g, '_').replace(/[çğıöşüÇĞIİÖŞÜ]/g, '')}_${offer.id}_${currentDate.replace(/\./g, '-')}.pdf`;
+    doc.save(fileName);
+    
+    toast.success('PDF basariyla olusturuldu ve indirildi!');
+  };
+
   // Statistics Cards Data
   const statsData = [
     {
-      title: 'Toplam Teklif',
-      value: offers.length,
+      title: 'Filtrelenmiş Teklif',
+      value: filteredOffers.length,
       icon: <LocalOfferIcon />,
       color: '#10b981',
-      trend: '+18%'
+      trend: `${filteredOffers.length}/${offers.length}`
     },
     {
       title: 'Bekleyen Teklifler',
@@ -458,35 +726,64 @@ const Offers = () => {
       <Card sx={{ mb: 3, border: '1px solid #e5e7eb', borderRadius: 2 }}>
         <CardContent sx={{ p: 3 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-            <TextField
-              placeholder="Teklif ara..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ color: '#6b7280' }} />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{
-                minWidth: 300,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                  backgroundColor: '#f9fafb',
-                  '& .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#e5e7eb',
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+              <TextField
+                placeholder="Teklif ara..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ color: '#6b7280' }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  minWidth: 300,
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    backgroundColor: '#f9fafb',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#e5e7eb',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#10b981',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#10b981',
+                      borderWidth: '2px',
+                    },
                   },
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#10b981',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#10b981',
-                    borderWidth: '2px',
-                  },
-                },
-              }}
-            />
+                }}
+              />
+              <FormControl sx={{ minWidth: 200 }}>
+                <InputLabel sx={{ color: '#6b7280' }}>Durum Filtresi</InputLabel>
+                <Select
+                  value={statusFilter}
+                  label="Durum Filtresi"
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  sx={{
+                    borderRadius: 2,
+                    backgroundColor: '#f9fafb',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#e5e7eb',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#10b981',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#10b981',
+                      borderWidth: '2px',
+                    },
+                  }}
+                >
+                  <MenuItem value="all">Tüm Durumlar</MenuItem>
+                  <MenuItem value="OFFER_SENT">Gönderildi</MenuItem>
+                  <MenuItem value="OFFER_ACCEPTED">Kabul Edildi</MenuItem>
+                  <MenuItem value="OFFER_REJECTED">Reddedildi</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -549,10 +846,10 @@ const Offers = () => {
                     <Box sx={{ textAlign: 'center' }}>
                       <LocalOfferIcon sx={{ fontSize: 48, color: '#9ca3af', mb: 2 }} />
                       <Typography variant="h6" sx={{ color: '#6b7280', mb: 1 }}>
-                        {searchTerm ? 'Arama sonucu bulunamadı' : 'Henüz teklif eklenmemiş'}
+                        {searchTerm || statusFilter !== 'all' ? 'Arama sonucu bulunamadı' : 'Henüz teklif eklenmemiş'}
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#9ca3af' }}>
-                        {searchTerm ? 'Farklı arama terimleri deneyin' : 'İlk teklifinizi eklemek için "Yeni Teklif" butonuna tıklayın'}
+                        {searchTerm || statusFilter !== 'all' ? 'Farklı arama terimleri veya durum filtresi deneyin' : 'İlk teklifinizi eklemek için "Yeni Teklif" butonuna tıklayın'}
                       </Typography>
                   </Box>
                 </TableCell>
@@ -581,7 +878,7 @@ const Offers = () => {
                         </Avatar>
                         <Box>
                           <Typography variant="body1" sx={{ fontWeight: 600, color: '#1f2937' }}>
-                            {offer.brandName || 'Bilinmeyen Marka'}
+                            {offer.brandName || 'Bilinmeyen Müşteri'}
                           </Typography>
                           <Typography variant="body2" sx={{ color: '#6b7280' }}>
                             ID: {offer.id}
@@ -730,8 +1027,8 @@ const Offers = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-              }}
-            >
+        }}
+      >
               <EditIcon />
             </Box>
             <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937' }}>
@@ -746,16 +1043,16 @@ const Offers = () => {
           {editOffer && (
             <Box sx={{ display: 'grid', gap: 3 }}>
               <FormControl fullWidth disabled>
-                <InputLabel id="edit-brand-select-label">Marka</InputLabel>
+                <InputLabel id="edit-brand-select-label">Müşteri</InputLabel>
               <Select
                   labelId="edit-brand-select-label"
                   value={editOffer.brandId}
-                  label="Marka"
+                  label="Müşteri"
                   sx={{
                     borderRadius: 2,
                     backgroundColor: '#f9fafb',
                   }}
-                >
+              >
                 {brands.map((brand) => (
                     <MenuItem key={brand.id} value={brand.id}>
                     {brand.name}
@@ -770,28 +1067,62 @@ const Offers = () => {
                   <Typography variant="h6" sx={{ color: '#1f2937', fontWeight: 600 }}>
                     Ürünler
                   </Typography>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<AddIcon />}
-                    onClick={addEditItem}
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<AddIcon />}
+                      onClick={addEditItem}
                   sx={{
-                      borderColor: '#10b981',
-                      color: '#10b981',
+                        borderColor: '#10b981',
+                        color: '#10b981',
                     '&:hover': {
-                        borderColor: '#059669',
-                        backgroundColor: '#10b98110'
+                          borderColor: '#059669',
+                          backgroundColor: '#10b98110'
+                        }
+                      }}
+                    >
+                      Ürün Ekle
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<InventoryIcon />}
+                      onClick={() => setIsProductModalOpen(true)}
+                      sx={{
+                        borderColor: '#3b82f6',
+                        color: '#3b82f6',
+                        '&:hover': {
+                          borderColor: '#2563eb',
+                          backgroundColor: '#3b82f610'
                     }
                   }}
                 >
-                    Ürün Ekle
-                  </Button>
+                      Yeni Ürün Oluştur
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<PersonIcon />}
+                      onClick={() => setIsBrandModalOpen(true)}
+                      sx={{
+                        borderColor: '#f59e0b',
+                        color: '#f59e0b',
+                        '&:hover': {
+                          borderColor: '#d97706',
+                          backgroundColor: '#f59e0b10'
+                        }
+                      }}
+                    >
+                      Yeni Müşteri Oluştur
+                    </Button>
+              </Box>
               </Box>
                 
                 {editOffer.items.map((item, index) => (
                   <Box key={index} sx={{ 
                     display: 'grid', 
-                    gridTemplateColumns: '2fr 1fr 1fr auto', 
+                    gridTemplateColumns: '2fr 1fr 1fr 1fr auto', 
                     gap: 2, 
                     alignItems: 'center',
                     mb: 2,
@@ -809,7 +1140,7 @@ const Offers = () => {
                     >
                       {products.map((product) => (
                         <MenuItem key={product.id} value={product.id}>
-                            {product.name} ({product.code})
+                            {product.name} ({getUnitDisplayName(product.unit)})
                         </MenuItem>
                       ))}
                     </Select>
@@ -831,6 +1162,15 @@ const Offers = () => {
                       value={item.unitPrice}
                       onChange={(e) => updateEditItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
                       inputProps={{ min: 0, step: 0.01 }}
+                  />
+
+                  <TextField
+                      size="small"
+                      label="KDV (%)"
+                    type="number"
+                      value={item.taxRate}
+                      onChange={(e) => updateEditItem(index, 'taxRate', parseFloat(e.target.value) || 0)}
+                      inputProps={{ min: 0, max: 100, step: 0.01 }}
                     />
                     
                     <IconButton
@@ -865,9 +1205,40 @@ const Offers = () => {
                 borderRadius: 2,
                 border: '1px solid #10b981'
               }}>
-                <Typography variant="h6" sx={{ color: '#059669', fontWeight: 600 }}>
-                  Toplam Fiyat: ₺{calculateEditTotalPrice().toFixed(2)}
+                <Typography variant="h6" sx={{ color: '#059669', fontWeight: 600, mb: 1 }}>
+                  Teklif Özeti
                 </Typography>
+                {(() => {
+                  const netTotal = editOffer?.items.reduce((total, item) => {
+                    const lineTotal = item.quantity * item.unitPrice;
+                    return total + lineTotal;
+                  }, 0) || 0;
+                  
+                  const taxTotal = editOffer?.items.reduce((total, item) => {
+                    const lineTotal = item.quantity * item.unitPrice;
+                    const taxAmount = lineTotal * (item.taxRate / 100);
+                    return total + taxAmount;
+                  }, 0) || 0;
+                  
+                  const grandTotal = netTotal + taxTotal;
+                  
+                  return (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: '#059669' }}>Net:</Typography>
+                        <Typography variant="body2" sx={{ color: '#059669', fontWeight: 600 }}>₺{netTotal.toFixed(2)}</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: '#059669' }}>KDV:</Typography>
+                        <Typography variant="body2" sx={{ color: '#059669', fontWeight: 600 }}>₺{taxTotal.toFixed(2)}</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 0.5, borderTop: '1px solid #10b981' }}>
+                        <Typography variant="body1" sx={{ color: '#059669', fontWeight: 700 }}>Toplam:</Typography>
+                        <Typography variant="body1" sx={{ color: '#059669', fontWeight: 700 }}>₺{grandTotal.toFixed(2)}</Typography>
+                      </Box>
+                    </Box>
+                  );
+                })()}
               </Box>
               
               <TextField
@@ -915,7 +1286,7 @@ const Offers = () => {
           <Button 
             variant="contained" 
             onClick={handleUpdate}
-            disabled={isUpdating || !editOffer || editOffer.items.length === 0 || !editOffer.validUntil || calculateEditTotalPrice() <= 0}
+            disabled={isUpdating || !editOffer || editOffer.items.length === 0 || !editOffer.validUntil || editOffer.totalPrice <= 0}
             sx={{
               backgroundColor: '#10b981',
               '&:hover': { backgroundColor: '#059669' },
@@ -1088,10 +1459,10 @@ const Offers = () => {
               }}>
                 <Box>
                   <Typography variant="body2" sx={{ color: '#6b7280', mb: 1 }}>
-                    Marka
+                    Müşteri
                   </Typography>
                   <Typography variant="h6" sx={{ color: '#1f2937', fontWeight: 600 }}>
-                    {viewOffer.brandName || 'Bilinmeyen Marka'}
+                    {viewOffer.brandName || 'Bilinmeyen Müşteri'}
                   </Typography>
                 </Box>
                 <Box>
@@ -1137,12 +1508,14 @@ const Offers = () => {
                     {viewOffer.items.map((item, index) => {
                       const product = products.find(p => p.id === item.productId);
                       const lineTotal = item.quantity * item.unitPrice;
+                      const taxAmount = lineTotal * (item.taxRate / 100);
+                      const totalWithTax = lineTotal + taxAmount;
                       return (
                         <Box 
                           key={index}
                           sx={{ 
                             display: 'grid', 
-                            gridTemplateColumns: { xs: '1fr', md: '2fr 1fr 1fr 1fr' }, 
+                            gridTemplateColumns: { xs: '1fr', md: '2fr 1fr 1fr 1fr 1fr' }, 
                             gap: 2, 
                             alignItems: 'center',
                             p: 2,
@@ -1155,11 +1528,9 @@ const Offers = () => {
                             <Typography variant="body1" sx={{ fontWeight: 600, color: '#1f2937' }}>
                               {product?.name || `Ürün ID: ${item.productId}`}
                             </Typography>
-                            {product?.code && (
-                              <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                                Kod: {product.code}
-                              </Typography>
-                            )}
+                            <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                              Birim: {product?.unit ? getUnitDisplayName(product.unit) : 'Belirtilmemiş'}
+                            </Typography>
                           </Box>
                           <Box sx={{ textAlign: { xs: 'left', md: 'center' } }}>
                             <Typography variant="body2" sx={{ color: '#6b7280' }}>
@@ -1177,12 +1548,26 @@ const Offers = () => {
                               ₺{item.unitPrice.toFixed(2)}
                             </Typography>
                           </Box>
-                          <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+                          <Box sx={{ textAlign: { xs: 'left', md: 'center' } }}>
                             <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                              Toplam
+                              KDV (%)
                             </Typography>
-                            <Typography variant="body1" sx={{ fontWeight: 600, color: '#059669' }}>
+                            <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                              %{item.taxRate}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+                            <Typography variant="body2" sx={{ color: '#6b7280', mb: 0.5 }}>
+                              Net Tutar
+                            </Typography>
+                            <Typography variant="body1" sx={{ fontWeight: 600, color: '#374151' }}>
                               ₺{lineTotal.toFixed(2)}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '0.75rem' }}>
+                              KDV (%{item.taxRate}): ₺{taxAmount.toFixed(2)}
+                            </Typography>
+                            <Typography variant="body1" sx={{ fontWeight: 700, color: '#059669', mt: 0.5 }}>
+                              Toplam: ₺{totalWithTax.toFixed(2)}
                             </Typography>
                           </Box>
                         </Box>
@@ -1210,14 +1595,63 @@ const Offers = () => {
                 backgroundColor: '#f0fdf4', 
                 borderRadius: 2,
                 border: '1px solid #10b981',
-                textAlign: 'center'
               }}>
-                <Typography variant="body2" sx={{ color: '#059669', mb: 1 }}>
-                  Toplam Teklif Tutarı
+                <Typography variant="h6" sx={{ color: '#059669', fontWeight: 600, mb: 2, textAlign: 'center' }}>
+                  Teklif Özeti
                 </Typography>
-                <Typography variant="h4" sx={{ color: '#059669', fontWeight: 700 }}>
-                  ₺{viewOffer.totalPrice.toFixed(2)}
-                </Typography>
+                
+                {/* Calculate totals */}
+                {(() => {
+                  const netTotal = viewOffer.items.reduce((total, item) => {
+                    const lineTotal = item.quantity * item.unitPrice;
+                    return total + lineTotal;
+                  }, 0);
+                  
+                  const taxTotal = viewOffer.items.reduce((total, item) => {
+                    const lineTotal = item.quantity * item.unitPrice;
+                    const taxAmount = lineTotal * (item.taxRate / 100);
+                    return total + taxAmount;
+                  }, 0);
+                  
+                  const grandTotal = netTotal + taxTotal;
+                  
+                  return (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="body1" sx={{ color: '#059669', fontWeight: 500 }}>
+                          Net:
+                        </Typography>
+                        <Typography variant="body1" sx={{ color: '#059669', fontWeight: 600 }}>
+                          ₺{netTotal.toFixed(2)}
+                        </Typography>
+                      </Box>
+                      
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="body1" sx={{ color: '#059669', fontWeight: 500 }}>
+                          KDV:
+                        </Typography>
+                        <Typography variant="body1" sx={{ color: '#059669', fontWeight: 600 }}>
+                          ₺{taxTotal.toFixed(2)}
+                        </Typography>
+                      </Box>
+                      
+                      <Box sx={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        pt: 1,
+                        borderTop: '1px solid #10b981'
+                      }}>
+                        <Typography variant="h6" sx={{ color: '#059669', fontWeight: 700 }}>
+                          Toplam:
+                        </Typography>
+                        <Typography variant="h6" sx={{ color: '#059669', fontWeight: 700 }}>
+                          ₺{grandTotal.toFixed(2)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  );
+                })()}
               </Box>
             </Box>
           )}
@@ -1231,6 +1665,27 @@ const Offers = () => {
             }}
           >
             Kapat
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<LocalOfferIcon />}
+            onClick={() => {
+              if (viewOffer) {
+                generatePDF(viewOffer);
+              }
+            }}
+            sx={{
+              borderColor: '#10b981',
+              color: '#10b981',
+              '&:hover': {
+                borderColor: '#059669',
+                backgroundColor: '#10b98110'
+              },
+              borderRadius: 2,
+              px: 3
+            }}
+          >
+            PDF İndir
           </Button>
           {viewOffer?.status === 'OFFER_SENT' && (
             <Button
@@ -1302,12 +1757,12 @@ const Offers = () => {
         <DialogContent sx={{ pt: 3 }}>
           <Box sx={{ display: 'grid', gap: 3 }}>
             <FormControl fullWidth>
-              <InputLabel id="brand-select-label">Marka</InputLabel>
+                              <InputLabel id="brand-select-label">Müşteri</InputLabel>
               <Select
                 labelId="brand-select-label"
                 id="brand-select"
-                value={newOffer.brandId}
-                label="Marka"
+                                  value={newOffer.brandId}
+                  label="Müşteri"
                 onChange={(e) => setNewOffer({
                   ...newOffer,
                   brandId: Number(e.target.value)
@@ -1333,28 +1788,62 @@ const Offers = () => {
                  <Typography variant="h6" sx={{ color: '#1f2937', fontWeight: 600 }}>
                    Ürünler
                  </Typography>
-                 <Button
-                   variant="outlined"
-                   size="small"
-                   startIcon={<AddIcon />}
-                   onClick={addItem}
-                   sx={{
-                     borderColor: '#10b981',
-                     color: '#10b981',
-                     '&:hover': {
-                       borderColor: '#059669',
-                       backgroundColor: '#10b98110'
-                     }
-                   }}
-                 >
-                   Ürün Ekle
-                 </Button>
+                 <Box sx={{ display: 'flex', gap: 1 }}>
+                   <Button
+                     variant="outlined"
+                     size="small"
+                     startIcon={<AddIcon />}
+                     onClick={addItem}
+                     sx={{
+                       borderColor: '#10b981',
+                       color: '#10b981',
+                       '&:hover': {
+                         borderColor: '#059669',
+                         backgroundColor: '#10b98110'
+                       }
+                     }}
+                   >
+                     Ürün Ekle
+                   </Button>
+                   <Button
+                     variant="outlined"
+                     size="small"
+                     startIcon={<InventoryIcon />}
+                     onClick={() => setIsProductModalOpen(true)}
+                     sx={{
+                       borderColor: '#3b82f6',
+                       color: '#3b82f6',
+                       '&:hover': {
+                         borderColor: '#2563eb',
+                         backgroundColor: '#3b82f610'
+                       }
+                     }}
+                   >
+                     Yeni Ürün Oluştur
+                   </Button>
+                   <Button
+                     variant="outlined"
+                     size="small"
+                     startIcon={<PersonIcon />}
+                     onClick={() => setIsBrandModalOpen(true)}
+                     sx={{
+                       borderColor: '#f59e0b',
+                       color: '#f59e0b',
+                       '&:hover': {
+                         borderColor: '#d97706',
+                         backgroundColor: '#f59e0b10'
+                       }
+                     }}
+                   >
+                     Yeni Müşteri Oluştur
+                   </Button>
+                 </Box>
                </Box>
                
                {newOffer.items.map((item, index) => (
                  <Box key={index} sx={{ 
                    display: 'grid', 
-                   gridTemplateColumns: '2fr 1fr 1fr auto', 
+                   gridTemplateColumns: '2fr 1fr 1fr 1fr auto', 
                    gap: 2, 
                    alignItems: 'center',
                    mb: 2,
@@ -1372,7 +1861,7 @@ const Offers = () => {
                      >
                        {products.map((product) => (
                          <MenuItem key={product.id} value={product.id}>
-                           {product.name} ({product.code})
+                           {product.name} ({getUnitDisplayName(product.unit)})
                          </MenuItem>
                        ))}
                      </Select>
@@ -1394,6 +1883,15 @@ const Offers = () => {
                      value={item.unitPrice}
                      onChange={(e) => updateItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
                      inputProps={{ min: 0, step: 0.01 }}
+                   />
+
+                   <TextField
+                     size="small"
+                     label="KDV (%)"
+                     type="number"
+                     value={item.taxRate}
+                     onChange={(e) => updateItem(index, 'taxRate', parseFloat(e.target.value) || 0)}
+                     inputProps={{ min: 0, max: 100, step: 0.01 }}
                    />
                    
                    <IconButton
@@ -1428,9 +1926,40 @@ const Offers = () => {
                borderRadius: 2,
                border: '1px solid #10b981'
              }}>
-               <Typography variant="h6" sx={{ color: '#059669', fontWeight: 600 }}>
-                 Toplam Fiyat: ₺{calculateTotalPrice().toFixed(2)}
+               <Typography variant="h6" sx={{ color: '#059669', fontWeight: 600, mb: 1 }}>
+                 Teklif Özeti
                </Typography>
+               {(() => {
+                 const netTotal = newOffer.items.reduce((total, item) => {
+                   const lineTotal = item.quantity * item.unitPrice;
+                   return total + lineTotal;
+                 }, 0);
+                 
+                 const taxTotal = newOffer.items.reduce((total, item) => {
+                   const lineTotal = item.quantity * item.unitPrice;
+                   const taxAmount = lineTotal * (item.taxRate / 100);
+                   return total + taxAmount;
+                 }, 0);
+                 
+                 const grandTotal = netTotal + taxTotal;
+                 
+                 return (
+                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                       <Typography variant="body2" sx={{ color: '#059669' }}>Net:</Typography>
+                       <Typography variant="body2" sx={{ color: '#059669', fontWeight: 600 }}>₺{netTotal.toFixed(2)}</Typography>
+                     </Box>
+                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                       <Typography variant="body2" sx={{ color: '#059669' }}>KDV:</Typography>
+                       <Typography variant="body2" sx={{ color: '#059669', fontWeight: 600 }}>₺{taxTotal.toFixed(2)}</Typography>
+                     </Box>
+                     <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 0.5, borderTop: '1px solid #10b981' }}>
+                       <Typography variant="body1" sx={{ color: '#059669', fontWeight: 700 }}>Toplam:</Typography>
+                       <Typography variant="body1" sx={{ color: '#059669', fontWeight: 700 }}>₺{grandTotal.toFixed(2)}</Typography>
+                     </Box>
+                   </Box>
+                 );
+               })()}
              </Box>
             
                          <TextField
@@ -1468,7 +1997,7 @@ const Offers = () => {
                  status: 'OFFER_SENT' as const,
                  totalPrice: 0,
                  validUntil: '',
-                 items: [] as { productId: number; quantity: number; unitPrice: number; }[]
+                 items: [] as { productId: number; quantity: number; unitPrice: number; taxRate: number; }[]
                });
              }}
              disabled={isCreating}
@@ -1483,12 +2012,11 @@ const Offers = () => {
             variant="contained"
              onClick={() => {
                const selectedBrand = brands.find(b => b.id === newOffer.brandId);
-               const totalPrice = calculateTotalPrice();
-               if (selectedBrand && newOffer.items.length > 0 && newOffer.validUntil && totalPrice > 0) {
+               if (selectedBrand && newOffer.items.length > 0 && newOffer.validUntil && newOffer.totalPrice > 0) {
                  handleCreate({
                    brandId: newOffer.brandId,
                    status: newOffer.status,
-                   totalPrice: totalPrice,
+                   totalPrice: newOffer.totalPrice,
                    validUntil: newOffer.validUntil,
                    items: newOffer.items,
                    brandName: selectedBrand.name
@@ -1498,11 +2026,11 @@ const Offers = () => {
                    status: 'OFFER_SENT' as const,
                    totalPrice: 0,
                    validUntil: '',
-                   items: [] as { productId: number; quantity: number; unitPrice: number; }[]
+                   items: [] as { productId: number; quantity: number; unitPrice: number; taxRate: number; }[]
                  });
                }
              }}
-             disabled={isCreating || !newOffer.brandId || newOffer.items.length === 0 || !newOffer.validUntil || calculateTotalPrice() <= 0}
+             disabled={isCreating || !newOffer.brandId || newOffer.items.length === 0 || !newOffer.validUntil || newOffer.totalPrice <= 0}
              sx={{
                backgroundColor: '#10b981',
                '&:hover': { backgroundColor: '#059669' },
@@ -1532,6 +2060,90 @@ const Offers = () => {
         loading={isDeleting}
         confirmText={isDeleting ? 'Siliniyor...' : 'Sil'}
       />
+
+      {/* Brand Form Modal */}
+      <BrandFormModal
+        open={isBrandModalOpen}
+        onClose={() => setIsBrandModalOpen(false)}
+        onSubmit={handleCreateBrand}
+        title="Yeni Müşteri Oluştur"
+        loading={isCreatingBrand}
+      />
+
+      {/* Product Form Modal */}
+      <Dialog open={isProductModalOpen} onClose={() => setIsProductModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Yeni Ürün Oluştur</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2, display: 'grid', gap: 2 }}>
+            <TextField
+              fullWidth
+              label="Ürün Adı"
+              value={productForm.name}
+              onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+              required
+            />
+            <TextField
+              fullWidth
+              label="Açıklama"
+              value={productForm.description}
+              onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+              multiline
+              rows={3}
+            />
+            <FormControl fullWidth>
+              <InputLabel>Birim</InputLabel>
+              <Select
+                value={productForm.unit}
+                label="Birim"
+                onChange={(e) => setProductForm({ ...productForm, unit: e.target.value as Unit })}
+              >
+                {Object.values(Unit).map((unit) => (
+                  <MenuItem key={unit} value={unit}>
+                    {getUnitDisplayName(unit)}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Birim Fiyat"
+              type="number"
+              value={productForm.unitPrice}
+              onChange={(e) => setProductForm({ ...productForm, unitPrice: parseFloat(e.target.value) || 0 })}
+              inputProps={{ min: 0, step: 0.01 }}
+              required
+            />
+            <TextField
+              fullWidth
+              label="Vergi Oranı (%)"
+              type="number"
+              value={productForm.taxRate}
+              onChange={(e) => setProductForm({ ...productForm, taxRate: parseFloat(e.target.value) || 18 })}
+              inputProps={{ min: 0, max: 100, step: 0.01 }}
+            />
+        </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setIsProductModalOpen(false);
+            setProductForm({
+              name: '',
+              description: '',
+              unit: Unit.ADET,
+              unitPrice: 0,
+              taxRate: 18
+            });
+          }}>İptal</Button>
+          <Button 
+            variant="contained" 
+            color="primary"
+            disabled={isCreatingProduct || !productForm.name || productForm.unitPrice <= 0}
+            onClick={() => handleCreateProduct(productForm)}
+          >
+            {isCreatingProduct ? 'Oluşturuluyor...' : 'Oluştur'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

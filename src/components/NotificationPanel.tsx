@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Box,
   Paper,
@@ -20,8 +21,6 @@ import {
 } from '@mui/material';
 import {
   Close as CloseIcon,
-  CheckCircle as CheckCircleIcon,
-  DeleteOutline as DeleteIcon,
   MarkEmailRead as MarkAllReadIcon,
   Refresh as RefreshIcon,
   Notifications as NotificationsIcon,
@@ -125,24 +124,38 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ anchorEl, open, o
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  if (!open) return null;
-
-  return (
-    <Paper
-      sx={{
-        position: 'fixed',
-        top: 70,
-        right: 20,
-        width: 420,
-        maxHeight: 600,
-        zIndex: 1300,
-        borderRadius: 2,
-        boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
-        border: '1px solid #e2e8f0',
-        background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-        overflow: 'hidden'
-      }}
-    >
+  const panelContent = open ? (
+    <>
+      {/* Backdrop */}
+      <Box
+        sx={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          zIndex: 1299,
+          backgroundColor: 'transparent'
+        }}
+        onClick={onClose}
+      />
+      
+      {/* Panel */}
+      <Paper
+        sx={{
+          position: 'fixed',
+          top: 70,
+          right: 20,
+          width: 420,
+          maxHeight: 600,
+          zIndex: 1300,
+          borderRadius: 2,
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
+          border: '1px solid #e2e8f0',
+          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+          overflow: 'hidden'
+        }}
+      >
       {/* Header */}
       <Box sx={{ p: 2, borderBottom: '1px solid #e2e8f0', bgcolor: 'white' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -343,7 +356,10 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ anchorEl, open, o
         </Box>
       )}
     </Paper>
-  );
+    </>
+  ) : null;
+
+  return panelContent ? createPortal(panelContent, document.body) : null;
 };
 
 export default NotificationPanel; 

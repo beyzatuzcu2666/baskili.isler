@@ -5,6 +5,7 @@ export interface Brand {
   name: string;
   contactEmail: string;
   contactPhone: string;
+  logoUrl?: string;
 }
 
 export const brandsService = {
@@ -21,7 +22,7 @@ export const brandsService = {
   async createBrand(brandData: Omit<Brand, 'id'>): Promise<Brand> {
     try {
       const response = await http.post('/brands', brandData);
-      return response.data;
+      return response;
     } catch (error) {
       throw error;
     }
@@ -42,6 +43,17 @@ export const brandsService = {
       await http.delete(`/brands/${brandId}`);
     } catch (error) {
       console.error('Error deleting brand:', error);
+      throw error;
+    }
+  },
+
+  async uploadBrandLogo(brandId: number, file: File): Promise<void> {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      await http.patch(`/brands/${brandId}/logo`, formData);
+    } catch (error) {
+      console.error('Error uploading brand logo:', error);
       throw error;
     }
   }

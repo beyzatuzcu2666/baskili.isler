@@ -2,7 +2,6 @@
   "name": "my-app",
   "version": "0.1.0",
   "private": true,
-  "proxy": "https://baskili-isler-backend.onrender.com",
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
@@ -23,6 +22,8 @@
     "axios": "^1.9.0",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.15.0",
+    "jspdf": "^3.0.1",
+    "jspdf-autotable": "^5.0.2",
     "node-fetch": "^3.3.2",
     "react": "^19.1.0",
     "react-datepicker": "^8.4.0",

@@ -1,753 +1,641 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Box, 
-  Button,
-  Typography,
   Card,
   CardContent,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  CircularProgress,
-  IconButton,
+  Typography,
+  Button,
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableContainer, 
+  TableHead, 
+  TableRow, 
+  Paper, 
   Chip,
-  Avatar,
-  TextField,
-  InputAdornment,
-  Fab,
-  Tooltip,
-  Stack,
-  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Grid,
+  Tooltip,
+  IconButton,
+  TablePagination,
+  CircularProgress,
+  Alert,
+  SelectChangeEvent,
+  Avatar,
+  InputAdornment,
+  FormControlLabel,
+  Switch,
+  Stack,
+  Divider,
 } from '@mui/material';
-import { 
-  Edit as EditIcon, 
-  Delete as DeleteIcon,
-  Search as SearchIcon,
+import {
   Add as AddIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Visibility as ViewIcon,
+  Close as CloseIcon,
+  AttachMoney as MoneyIcon,
+  Category as CategoryIcon,
   Inventory as InventoryIcon,
   TrendingUp as TrendingUpIcon,
-  LocalOffer as LocalOfferIcon,
-  Visibility as VisibilityIcon
+  CheckCircle as CheckCircleIcon,
+  Block as BlockIcon,
+  Search as SearchIcon,
+  Visibility as VisibilityIcon,
+  PowerSettingsNew as PowerIcon,
 } from '@mui/icons-material';
-import { Product } from '../types/product';
+import { Product, ProductCreateDto, ProductUpdateDto, Unit, getUnitDisplayName } from '../types/product';
 import { productsService } from '../services/products';
 import { ConfirmationDialog } from './ConfirmationDialog';
+import { toast } from 'react-toastify';
 
-const Products: React.FC = () => {
+const Products = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [newProductName, setNewProductName] = useState('');
-  const [newProductCode, setNewProductCode] = useState('');
-  const [newProductPrice, setNewProductPrice] = useState('');
-  const [newProductUnit, setNewProductUnit] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleteProductId, setDeleteProductId] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteProductId, setDeleteProductId] = useState<number | null>(null);
+  const [showActiveOnly, setShowActiveOnly] = useState(false);
+  
+  // Form states
+  const [formData, setFormData] = useState<ProductCreateDto>({
+    name: '',
+    description: '',
+    unit: Unit.ADET,
+    unitPrice: 0,
+    taxRate: 18.00
+  });
 
   useEffect(() => {
     loadProducts();
   }, []);
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.unit.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (product.description && product.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesActive = showActiveOnly ? product.active : true;
+    return matchesSearch && matchesActive;
+  });
 
   const loadProducts = async () => {
     try {
+      setLoading(true);
       const data = await productsService.getAll();
-      if (!Array.isArray(data)) {
-        throw new Error('Invalid products data format');
-      }
       setProducts(data);
       setError(null);
     } catch (error) {
       console.error('Error loading products:', error);
       setError('Ürünler yüklenirken bir hata oluştu');
+      toast.error('Ürünler yüklenirken bir hata oluştu');
     } finally {
       setLoading(false);
     }
   };
 
   const handleCreate = async () => {
-    if (!newProductName.trim() || !newProductCode.trim() || !newProductPrice.trim() || !newProductUnit.trim()) return;
+    if (!formData.name.trim() || formData.unitPrice <= 0) {
+      toast.error('Lütfen gerekli alanları doldurun');
+      return;
+    }
 
     setIsCreating(true);
     try {
-      const product = await productsService.create({
-        name: newProductName,
-        code: newProductCode,
-        unitPrice: parseFloat(newProductPrice),
-        unit: newProductUnit
-      });
+      const product = await productsService.create(formData);
       setProducts([...products, product]);
       resetForm();
       setOpenDialog(false);
-      setError(null);
+      toast.success('Ürün başarıyla oluşturuldu');
     } catch (error) {
       console.error('Error creating product:', error);
-      setError('Ürün oluşturulurken bir hata oluştu');
+      toast.error('Ürün oluşturulurken bir hata oluştu');
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleEdit = async (product: Product) => {
-    setSelectedProduct(product);
-    setNewProductName(product.name);
-    setNewProductCode(product.code);
-    setNewProductPrice(product.unitPrice.toString());
-    setNewProductUnit(product.unit);
-    setOpenDialog(true);
-  };
-
   const handleUpdate = async () => {
-    if (!selectedProduct) return;
+    if (!selectedProduct || !formData.name.trim() || formData.unitPrice <= 0) {
+      toast.error('Lütfen gerekli alanları doldurun');
+      return;
+    }
 
     setIsUpdating(true);
     try {
-      const updatedProduct = await productsService.update(selectedProduct.id, {
-        name: newProductName,
-        code: newProductCode,
-        unitPrice: parseFloat(newProductPrice),
-        unit: newProductUnit
-      });
+      const updateData: ProductUpdateDto = {
+        name: formData.name,
+        description: formData.description,
+        unit: formData.unit,
+        unitPrice: formData.unitPrice,
+        taxRate: formData.taxRate
+      };
+      
+      const updatedProduct = await productsService.update(selectedProduct.id, updateData);
       setProducts(products.map(p => p.id === selectedProduct.id ? updatedProduct : p));
       resetForm();
       setOpenDialog(false);
-      setError(null);
+      toast.success('Ürün başarıyla güncellendi');
     } catch (error) {
       console.error('Error updating product:', error);
-      setError('Ürün güncellenirken bir hata oluştu');
+      toast.error('Ürün güncellenirken bir hata oluştu');
     } finally {
       setIsUpdating(false);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    setDeleteProductId(id);
-    setConfirmDelete(true);
-  };
+  const handleDelete = async () => {
+    if (!deleteProductId) return;
 
-  const confirmDeleteProduct = async () => {
-    if (deleteProductId) {
-      setIsDeleting(true);
+    setIsDeleting(true);
       try {
         await productsService.delete(deleteProductId);
         setProducts(products.filter(p => p.id !== deleteProductId));
+      setConfirmDelete(false);
         setDeleteProductId(null);
-        setConfirmDelete(false);
-        setError(null);
+      toast.success('Ürün başarıyla silindi');
       } catch (error) {
         console.error('Error deleting product:', error);
-        setError('Ürün silinirken bir hata oluştu');
-      } finally {
-        setIsDeleting(false);
-      }
+      toast.error('Ürün silinirken bir hata oluştu');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleToggleActive = async (product: Product) => {
+    try {
+      const updatedProduct = product.active 
+        ? await productsService.deactivate(product.id)
+        : await productsService.activate(product.id);
+      
+      setProducts(products.map(p => p.id === product.id ? updatedProduct : p));
+      toast.success(`Ürün ${updatedProduct.active ? 'aktifleştirildi' : 'pasifleştirildi'}`);
+    } catch (error) {
+      console.error('Error toggling product status:', error);
+      toast.error('Ürün durumu değiştirilirken bir hata oluştu');
     }
   };
 
   const resetForm = () => {
+    setFormData({
+      name: '',
+      description: '',
+      unit: Unit.ADET,
+      unitPrice: 0,
+      taxRate: 18.00
+    });
     setSelectedProduct(null);
-    setNewProductName('');
-    setNewProductCode('');
-    setNewProductPrice('');
-    setNewProductUnit('');
   };
 
-  const handleView = (product: Product) => {
+  const openCreateDialog = () => {
+    resetForm();
+    setOpenDialog(true);
+  };
+
+  const openEditDialog = (product: Product) => {
+    setSelectedProduct(product);
+    setFormData({
+      name: product.name,
+      description: product.description || '',
+      unit: product.unit,
+      unitPrice: product.unitPrice,
+      taxRate: product.taxRate
+    });
+    setOpenDialog(true);
+  };
+
+  const openViewModal = (product: Product) => {
     setViewProduct(product);
     setViewModalOpen(true);
   };
 
-  // Statistics Cards Data
-  const statsData = [
-    {
-      title: 'Toplam Ürün',
-      value: products.length,
-      icon: <InventoryIcon />,
-      color: '#10b981',
-      trend: '+15%'
-    },
-    {
-      title: 'Aktif Ürünler',
-      value: products.length,
-      icon: <TrendingUpIcon />,
-      color: '#f97316',
-      trend: '+12%'
-    },
-    {
-      title: 'Ortalama Fiyat',
-      value: products.length > 0 ? `₺${(products.reduce((sum, p) => sum + p.unitPrice, 0) / products.length).toFixed(2)}` : '₺0',
-      icon: <LocalOfferIcon />,
-      color: '#1e3a8a',
-      trend: '+8%'
-    }
-  ];
+  const openDeleteDialog = (productId: number) => {
+    setDeleteProductId(productId);
+    setConfirmDelete(true);
+  };
+
+  const getStatusColor = (active: boolean) => {
+    return active ? '#10b981' : '#ef4444';
+  };
+
+  const getStatusText = (active: boolean) => {
+    return active ? 'Aktif' : 'Pasif';
+  };
 
   if (loading) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
-          <CircularProgress size={40} sx={{ color: '#10b981' }} />
-        </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+        <CircularProgress />
       </Box>
     );
   }
 
-  return (
-    <Box sx={{ 
-      p: { xs: 2, sm: 3 },
-      pl: { xs: 2, sm: 3, md: 3 }, // Sidebar'a göre ayarlanmış sol padding
-      pr: { xs: 2, sm: 3, md: 3 },
-      width: '100%',
-      maxWidth: '100%',
-      overflow: 'hidden',
-      minHeight: '100vh',
-      backgroundColor: 'transparent'
-    }}>
-      {/* Page Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, color: '#1f2937', mb: 1 }}>
-          Ürün Yönetimi
+    return (
+    <Box sx={{ p: { xs: 2, sm: 3 }, pl: { xs: 2, sm: 3, md: 3 }, pr: { xs: 2, sm: 3, md: 3 } }}>
+      {/* Header */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 700, color: '#1e293b', mb: 1 }}>
+          Ürünler
         </Typography>
-        <Typography variant="body1" sx={{ color: '#6b7280' }}>
-          Ürünlerinizi yönetin, düzenleyin ve takip edin
+        <Typography variant="body1" sx={{ color: '#64748b' }}>
+          Sistem ürünlerini buradan yönetebilirsiniz
         </Typography>
       </Box>
 
-      {/* Statistics Cards */}
-      <Box sx={{ 
-        display: 'grid', 
-        gridTemplateColumns: { 
-          xs: '1fr', 
-          sm: 'repeat(2, 1fr)', 
-          lg: 'repeat(3, 1fr)' 
-        },
-        gap: 3, 
-        mb: 4 
-      }}>
-        {statsData.map((stat, index) => (
-          <Box key={index}>
-            <Card 
-              sx={{ 
-                background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                border: '1px solid #e5e7eb',
-                borderRadius: 2,
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                },
-                transition: 'all 0.2s ease-in-out'
-              }}
-            >
-              <CardContent sx={{ p: 3 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box>
-                    <Typography variant="body2" sx={{ color: '#6b7280', mb: 1 }}>
-                      {stat.title}
-                    </Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 700, color: '#1f2937', mb: 1 }}>
-                      {stat.value}
-                    </Typography>
-                    <Chip 
-                      label={stat.trend} 
-                      size="small" 
-                      sx={{ 
-                        backgroundColor: `${stat.color}20`,
-                        color: stat.color,
-                        fontWeight: 600,
-                        fontSize: '0.75rem'
-                      }} 
-                    />
-                  </Box>
-                  <Avatar 
-                    sx={{ 
-                      backgroundColor: `${stat.color}20`,
-                      color: stat.color,
-                      width: 56,
-                      height: 56
-                    }}
-                  >
-                    {stat.icon}
-                  </Avatar>
-                </Box>
-              </CardContent>
-            </Card>
-          </Box>
-        ))}
+      {/* Stats Cards */}
+      <Box sx={{ display: 'flex', gap: 3, mb: 3, flexWrap: 'wrap' }}>
+        <Card sx={{ flex: '1 1 250px', background: 'linear-gradient(135deg, #3b82f615 0%, #3b82f608 100%)', border: '1px solid #3b82f620' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: '#3b82f6' }}>
+                  {products.length}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500 }}>
+                  Toplam Ürün
+                </Typography>
+              </Box>
+              <Avatar sx={{ bgcolor: '#3b82f620', color: '#3b82f6' }}>
+                <InventoryIcon />
+              </Avatar>
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ flex: '1 1 250px', background: 'linear-gradient(135deg, #10b98115 0%, #10b98108 100%)', border: '1px solid #10b98120' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: '#10b981' }}>
+                  {products.filter(p => p.active).length}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500 }}>
+                  Aktif Ürün
+                </Typography>
+              </Box>
+              <Avatar sx={{ bgcolor: '#10b98120', color: '#10b981' }}>
+                <CheckCircleIcon />
+              </Avatar>
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ flex: '1 1 250px', background: 'linear-gradient(135deg, #f9731615 0%, #f9731608 100%)', border: '1px solid #f9731620' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: '#f97316' }}>
+                  ₺{products.reduce((sum, p) => sum + p.unitPrice, 0).toFixed(2)}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500 }}>
+                  Toplam Değer
+                </Typography>
+              </Box>
+              <Avatar sx={{ bgcolor: '#f9731620', color: '#f97316' }}>
+                <TrendingUpIcon />
+              </Avatar>
+            </Box>
+          </CardContent>
+        </Card>
       </Box>
 
-      {/* Action Bar */}
-      <Card sx={{ mb: 3, border: '1px solid #e5e7eb', borderRadius: 2 }}>
-        <CardContent sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-            <TextField
-              placeholder="Ürün ara..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ color: '#6b7280' }} />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{
-                minWidth: 300,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                  backgroundColor: '#f9fafb',
-                  '& .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#e5e7eb',
-                  },
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#10b981',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#10b981',
-                    borderWidth: '2px',
-                  },
-                },
-              }}
-            />
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => {
-                resetForm();
-                setOpenDialog(true);
-              }}
-              sx={{
-                backgroundColor: '#10b981',
-                borderRadius: 2,
-                px: 3,
-                py: 1.5,
-                fontWeight: 600,
-                textTransform: 'none',
-                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                '&:hover': {
-                  backgroundColor: '#059669',
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)',
-                },
-              }}
-            >
-              Yeni Ürün
-            </Button>
-          </Box>
-        </CardContent>
-      </Card>
+      {/* Controls */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <TextField
+            placeholder="Ürün ara..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            size="small"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              )
+            }}
+            sx={{ minWidth: 250 }}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showActiveOnly}
+                onChange={(e) => setShowActiveOnly(e.target.checked)}
+                color="primary"
+              />
+            }
+            label="Sadece Aktif"
+          />
+        </Box>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={openCreateDialog}
+          sx={{
+            background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+            borderRadius: 2,
+            textTransform: 'none',
+            fontWeight: 600
+          }}
+        >
+          Yeni Ürün
+        </Button>
+      </Box>
 
-      {/* Error Alert */}
       {error && (
-        <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+        <Alert severity="error" sx={{ mb: 3 }}>
           {error}
         </Alert>
       )}
 
-      {/* Main Table */}
-      <Card sx={{ border: '1px solid #e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
+      {/* Products Table */}
+      <Paper sx={{ borderRadius: 2, overflow: 'hidden' }}>
         <TableContainer>
           <Table>
             <TableHead>
-              <TableRow sx={{ backgroundColor: '#f9fafb' }}>
-                <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
-                  Ürün
-                </TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
-                  Kod & Birim
-                </TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
-                  Fiyat
-                </TableCell>
-                <TableCell align="center" sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
-                  İşlemler
-                </TableCell>
+              <TableRow sx={{ backgroundColor: '#f8fafc' }}>
+                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Ürün Adı</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Açıklama</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Birim</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Birim Fiyat</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>KDV Oranı</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>Durum</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#374151' }}>İşlemler</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredProducts.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
-                    <Box sx={{ textAlign: 'center' }}>
-                      <InventoryIcon sx={{ fontSize: 48, color: '#9ca3af', mb: 2 }} />
-                      <Typography variant="h6" sx={{ color: '#6b7280', mb: 1 }}>
-                        {searchTerm ? 'Arama sonucu bulunamadı' : 'Henüz ürün eklenmemiş'}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#9ca3af' }}>
-                        {searchTerm ? 'Farklı arama terimleri deneyin' : 'İlk ürününüzü eklemek için "Yeni Ürün" butonuna tıklayın'}
+              {filteredProducts.map((product) => (
+                <TableRow key={product.id} hover>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Avatar sx={{ bgcolor: '#e0f2fe', color: '#0277bd', width: 40, height: 40 }}>
+                        <InventoryIcon />
+                      </Avatar>
+                      <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                        {product.name}
                       </Typography>
                     </Box>
+                </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ color: '#64748b', maxWidth: 200 }}>
+                      {product.description || '-'}
+                    </Typography>
+                </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={getUnitDisplayName(product.unit)}
+                      size="small"
+                      sx={{ backgroundColor: '#f1f5f9', color: '#475569' }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body1" sx={{ fontWeight: 600, color: '#059669' }}>
+                      ₺{product.unitPrice.toFixed(2)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ color: '#64748b' }}>
+                      %{product.taxRate.toFixed(2)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={getStatusText(product.active)}
+                      size="small"
+                      sx={{
+                        backgroundColor: product.active ? '#dcfce7' : '#fee2e2',
+                        color: getStatusColor(product.active),
+                        fontWeight: 500
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Stack direction="row" spacing={1}>
+                      <Tooltip title="Görüntüle">
+                        <IconButton size="small" onClick={() => openViewModal(product)}>
+                          <VisibilityIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Düzenle">
+                        <IconButton size="small" onClick={() => openEditDialog(product)}>
+                          <EditIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title={product.active ? 'Pasifleştir' : 'Aktifleştir'}>
+                        <IconButton 
+                          size="small" 
+                          onClick={() => handleToggleActive(product)}
+                          sx={{ color: product.active ? '#ef4444' : '#10b981' }}
+                        >
+                          <PowerIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Sil">
+                        <IconButton size="small" onClick={() => openDeleteDialog(product.id)}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
                   </TableCell>
                 </TableRow>
-              ) : (
-                filteredProducts.map((product, index) => (
-                  <TableRow 
-                    key={product.id}
-                    sx={{ 
-                      '&:hover': { backgroundColor: '#f9fafb' },
-                      borderBottom: index === filteredProducts.length - 1 ? 'none' : '1px solid #e5e7eb'
-                    }}
-                  >
-                    <TableCell sx={{ py: 2 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Avatar 
-                          sx={{ 
-                            backgroundColor: '#10b98120',
-                            color: '#10b981',
-                            width: 40,
-                            height: 40,
-                            fontWeight: 600
-                          }}
-                        >
-                          {product.name.charAt(0).toUpperCase()}
-                        </Avatar>
-                        <Box>
-                          <Typography variant="body1" sx={{ fontWeight: 600, color: '#1f2937' }}>
-                            {product.name}
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                            ID: {product.id}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </TableCell>
-                    <TableCell sx={{ py: 2 }}>
-                      <Stack spacing={1}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2" sx={{ color: '#374151', fontWeight: 500 }}>
-                            Kod: {product.code}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                            Birim: {product.unit}
-                          </Typography>
-                        </Box>
-                      </Stack>
-                    </TableCell>
-                    <TableCell sx={{ py: 2 }}>
-                      <Typography variant="h6" sx={{ color: '#059669', fontWeight: 600 }}>
-                        ₺{product.unitPrice.toFixed(2)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="center" sx={{ py: 2 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
-                        <Tooltip title="Görüntüle">
-                          <IconButton 
-                            size="small"
-                            onClick={() => handleView(product)}
-                            sx={{ 
-                              color: '#6b7280',
-                              '&:hover': { backgroundColor: '#f3f4f6', color: '#374151' }
-                            }}
-                          >
-                            <VisibilityIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Düzenle">
-                          <IconButton 
-                            size="small"
-                            onClick={() => handleEdit(product)}
-                            sx={{ 
-                              color: '#f97316',
-                              '&:hover': { backgroundColor: '#fef3e2', color: '#ea580c' }
-                            }}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Sil">
-                          <IconButton 
-                            size="small"
-                            onClick={() => handleDelete(product.id)}
-                            sx={{ 
-                              color: '#ef4444',
-                              '&:hover': { backgroundColor: '#fef2f2', color: '#dc2626' }
-                            }}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Card>
+              ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-      {/* Floating Action Button for Mobile */}
-      <Fab
-        color="primary"
-        sx={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          backgroundColor: '#10b981',
-          '&:hover': { backgroundColor: '#059669' },
-          display: { xs: 'flex', md: 'none' }
-        }}
-        onClick={() => {
-          resetForm();
-          setOpenDialog(true);
-        }}
-      >
-        <AddIcon />
-      </Fab>
+        {filteredProducts.length === 0 && (
+          <Box sx={{ p: 4, textAlign: 'center' }}>
+            <InventoryIcon sx={{ fontSize: 64, color: '#94a3b8', mb: 2 }} />
+            <Typography variant="h6" sx={{ color: '#64748b', mb: 1 }}>
+              Ürün bulunamadı
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+              {searchTerm ? 'Arama kriterlerinize uygun ürün bulunamadı' : 'Henüz ürün eklenmemiş'}
+            </Typography>
+          </Box>
+        )}
+      </Paper>
 
-      {/* Product Form Dialog */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600, color: '#1f2937' }}>
-          {selectedProduct ? 'Ürün Güncelle' : 'Yeni Ürün Ekle'}
+      {/* Create/Edit Dialog */}
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          {selectedProduct ? 'Ürün Düzenle' : 'Yeni Ürün Oluştur'}
         </DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <Stack spacing={3}>
-            <TextField
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 2 }}>
+          <TextField
               label="Ürün Adı"
-              value={newProductName}
-              onChange={(e) => setNewProductName(e.target.value)}
-              fullWidth
-              variant="outlined"
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#10b981',
-                  },
-                },
-                '& .MuiInputLabel-root.Mui-focused': {
-                  color: '#10b981',
-                },
-              }}
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            fullWidth
+              required
+          />
+            
+          <TextField
+              label="Açıklama"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            fullWidth
+              multiline
+              rows={3}
             />
-            <TextField
-              label="Ürün Kodu"
-              value={newProductCode}
-              onChange={(e) => setNewProductCode(e.target.value)}
-              fullWidth
-              variant="outlined"
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#10b981',
-                  },
-                },
-                '& .MuiInputLabel-root.Mui-focused': {
-                  color: '#10b981',
-                },
-              }}
-            />
-            <TextField
-              label="Birim Fiyat"
-              type="number"
-              value={newProductPrice}
-              onChange={(e) => setNewProductPrice(e.target.value)}
-              fullWidth
-              variant="outlined"
-              InputProps={{
-                startAdornment: <InputAdornment position="start">₺</InputAdornment>,
-              }}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#10b981',
-                  },
-                },
-                '& .MuiInputLabel-root.Mui-focused': {
-                  color: '#10b981',
-                },
-              }}
-            />
-            <TextField
-              label="Birim"
-              value={newProductUnit}
-              onChange={(e) => setNewProductUnit(e.target.value)}
-              fullWidth
-              variant="outlined"
-              placeholder="Adet, Kg, Metre, vb."
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#10b981',
-                  },
-                },
-                '& .MuiInputLabel-root.Mui-focused': {
-                  color: '#10b981',
-                },
-              }}
-            />
-          </Stack>
+
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <FormControl fullWidth>
+                <InputLabel>Birim</InputLabel>
+                <Select
+                  value={formData.unit}
+                  onChange={(e) => setFormData({ ...formData, unit: e.target.value as Unit })}
+                  label="Birim"
+                >
+                  {Object.values(Unit).map(unit => (
+                    <MenuItem key={unit} value={unit}>
+                      {getUnitDisplayName(unit)}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+          <TextField
+                label="Birim Fiyat"
+                type="number"
+                value={formData.unitPrice}
+                onChange={(e) => setFormData({ ...formData, unitPrice: parseFloat(e.target.value) || 0 })}
+            fullWidth
+                required
+                inputProps={{ min: 0, step: 0.01 }}
+              />
+
+          <TextField
+                label="KDV Oranı (%)"
+                type="number"
+                value={formData.taxRate}
+                onChange={(e) => setFormData({ ...formData, taxRate: parseFloat(e.target.value) || 0 })}
+            fullWidth
+                inputProps={{ min: 0, max: 100, step: 0.01 }}
+          />
+            </Box>
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 2 }}>
-          <Button 
-            onClick={() => setOpenDialog(false)}
-            disabled={isCreating || isUpdating}
-            sx={{ 
-              color: '#6b7280',
-              borderRadius: 2,
-              px: 3,
-              '&:hover': { backgroundColor: '#f3f4f6' }
-            }}
-          >
-            İptal
-          </Button>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)}>İptal</Button>
           <Button 
             onClick={selectedProduct ? handleUpdate : handleCreate}
             variant="contained"
             disabled={isCreating || isUpdating}
-            sx={{
-              backgroundColor: '#10b981',
-              borderRadius: 2,
-              px: 3,
-              '&:hover': { backgroundColor: '#059669' }
-            }}
+            startIcon={isCreating || isUpdating ? <CircularProgress size={20} /> : null}
           >
-            {(selectedProduct && isUpdating) ? (
-              <>
-                <CircularProgress size={16} sx={{ color: 'white', mr: 1 }} />
-                Güncelleniyor...
-              </>
-            ) : (!selectedProduct && isCreating) ? (
-              <>
-                <CircularProgress size={16} sx={{ color: 'white', mr: 1 }} />
-                Ekleniyor...
-              </>
-            ) : (
-              selectedProduct ? 'Güncelle' : 'Ekle'
-            )}
+            {selectedProduct ? 'Güncelle' : 'Oluştur'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* View Product Dialog */}
+      {/* View Modal */}
       <Dialog open={viewModalOpen} onClose={() => setViewModalOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600, color: '#1f2937', pb: 2 }}>
-          Ürün Detayları
-        </DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
+        <DialogTitle>Ürün Detayları</DialogTitle>
+        <DialogContent>
           {viewProduct && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {/* Product Header */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, backgroundColor: '#f9fafb', borderRadius: 2 }}>
-                <Avatar 
-                  sx={{ 
-                    backgroundColor: '#10b98120',
-                    color: '#10b981',
-                    width: 56,
-                    height: 56,
-                    fontWeight: 600,
-                    fontSize: '1.5rem'
-                  }}
-                >
-                  {viewProduct.name.charAt(0).toUpperCase()}
+            <Box sx={{ pt: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                <Avatar sx={{ bgcolor: '#e0f2fe', color: '#0277bd', width: 60, height: 60 }}>
+                  <InventoryIcon />
                 </Avatar>
                 <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937', mb: 0.5 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {viewProduct.name}
                   </Typography>
-                  <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                    ID: {viewProduct.id}
-                  </Typography>
+                  <Chip
+                    label={getStatusText(viewProduct.active)}
+                    size="small"
+                    sx={{
+                      backgroundColor: viewProduct.active ? '#dcfce7' : '#fee2e2',
+                      color: getStatusColor(viewProduct.active),
+                      fontWeight: 500
+                    }}
+                  />
                 </Box>
               </Box>
 
-              {/* Product Details */}
-              <Stack spacing={2}>
+              <Divider sx={{ mb: 3 }} />
+
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <Box>
-                  <Typography variant="body2" sx={{ color: '#6b7280', mb: 0.5 }}>
-                    Ürün Kodu
+                  <Typography variant="body2" sx={{ color: '#64748b', mb: 0.5 }}>
+                    Açıklama
                   </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 500, color: '#374151' }}>
-                    {viewProduct.code}
+                  <Typography variant="body1">
+                    {viewProduct.description || 'Açıklama bulunmuyor'}
                   </Typography>
                 </Box>
 
-                <Box>
-                  <Typography variant="body2" sx={{ color: '#6b7280', mb: 0.5 }}>
-                    Birim
-                  </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 500, color: '#374151' }}>
-                    {viewProduct.unit}
-                  </Typography>
+                <Box sx={{ display: 'flex', gap: 4 }}>
+                  <Box>
+                    <Typography variant="body2" sx={{ color: '#64748b', mb: 0.5 }}>
+                      Birim
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {getUnitDisplayName(viewProduct.unit)}
+                    </Typography>
+                  </Box>
+
+                  <Box>
+                    <Typography variant="body2" sx={{ color: '#64748b', mb: 0.5 }}>
+                      Birim Fiyat
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 600, color: '#059669' }}>
+                      ₺{viewProduct.unitPrice.toFixed(2)}
+                    </Typography>
+                  </Box>
+
+                  <Box>
+                    <Typography variant="body2" sx={{ color: '#64748b', mb: 0.5 }}>
+                      KDV Oranı
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      %{viewProduct.taxRate.toFixed(2)}
+                    </Typography>
+                  </Box>
                 </Box>
 
                 <Box>
-                  <Typography variant="body2" sx={{ color: '#6b7280', mb: 0.5 }}>
-                    Birim Fiyat
+                  <Typography variant="body2" sx={{ color: '#64748b', mb: 0.5 }}>
+                    KDV Dahil Fiyat
                   </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 600, color: '#059669' }}>
-                    ₺{viewProduct.unitPrice.toFixed(2)}
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#059669' }}>
+                    ₺{(viewProduct.unitPrice * (1 + viewProduct.taxRate / 100)).toFixed(2)}
                   </Typography>
                 </Box>
-              </Stack>
+              </Box>
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 2 }}>
-          <Button 
-            onClick={() => setViewModalOpen(false)}
-            sx={{ 
-              color: '#6b7280',
-              borderRadius: 2,
-              px: 3,
-              '&:hover': { backgroundColor: '#f3f4f6' }
-            }}
-          >
-            Kapat
-          </Button>
-          {viewProduct && (
-            <Button 
-              onClick={() => {
-                setViewModalOpen(false);
-                handleEdit(viewProduct);
-              }}
-              variant="contained"
-              sx={{
-                backgroundColor: '#10b981',
-                borderRadius: 2,
-                px: 3,
-                '&:hover': { backgroundColor: '#059669' }
-              }}
-            >
-              Düzenle
-            </Button>
-          )}
+        <DialogActions>
+          <Button onClick={() => setViewModalOpen(false)}>Kapat</Button>
         </DialogActions>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Confirmation */}
       <ConfirmationDialog
         open={confirmDelete}
         onClose={() => setConfirmDelete(false)}
-        onConfirm={confirmDeleteProduct}
-        title="Ürün Silme Onayı"
-        message="Bu ürünü silmek istediğinize emin misiniz?"
+        onConfirm={handleDelete}
+        title="Ürün Sil"
+        message="Bu ürünü silmek istediğinizden emin misiniz? Bu işlem geri alınamaz."
         loading={isDeleting}
-        confirmText={isDeleting ? 'Siliniyor...' : 'Sil'}
       />
     </Box>
   );

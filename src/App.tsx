@@ -5,6 +5,7 @@ import Login from './components/Login';
 import Products from './components/Products';
 import Offers from './components/Offers';
 import Brands from './components/Brands';
+import Dealers from './components/Dealers';
 import Orders from './components/Orders';
 import Factories from './components/Factories';
 import Notifications from './components/Notifications';
@@ -13,6 +14,7 @@ import Topbar from './components/Topbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthCheck from './components/AuthCheck';
 import LogoutRoute from './components/LogoutRoute';
+import { DealerProvider } from './contexts/DealerContext';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -98,47 +100,53 @@ const Layout = () => {
 function App() {
   return (
     <Router>
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        minHeight: '100vh',
-        backgroundColor: 'background.default'
-      }}>
-        <LogoutRoute>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            
-            {/* Layout route with nested routes */}
-            <Route path="/" element={<Layout />}>
-              <Route path="products" element={<Products />} />
-              <Route path="offers" element={<Offers />} />
-              <Route path="brands" element={<Brands />} />
-              <Route path="orders" element={<Orders />} />
-              <Route path="factory" element={<Factories />} />
-              <Route path="notifications" element={<Notifications />} />
-            </Route>
-          </Routes>
-        </LogoutRoute>
-        
-        {/* Toast Container */}
-        <ToastContainer
-          position="top-right"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop={false}
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          theme="colored"
-          style={{
-            fontSize: '16px',
-            zIndex: 9999,
-          }}
-        />
-      </Box>
+      <DealerProvider>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          minHeight: '100vh',
+          backgroundColor: 'background.default'
+        }}>
+          <LogoutRoute>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/" element={<Navigate to="/login" replace />} />
+
+              {/* Layout route with nested routes */}
+              <Route path="/" element={<Layout />}>
+                <Route path="products" element={<Products />} />
+                <Route path="offers" element={<Offers />} />
+                <Route path="brands" element={<Brands />} />
+                <Route path="dealers" element={<Dealers />} />
+                <Route path="orders" element={<Orders />} />
+                <Route path="factory" element={<Factories />} />
+                <Route path="notifications" element={<Notifications />} />
+                {/* Super admin için varsayılan yönlendirme */}
+                <Route path="dashboard" element={<Navigate to="/dealers" replace />} />
+                <Route path="" element={<Navigate to="/dealers" replace />} />
+              </Route>
+            </Routes>
+          </LogoutRoute>
+          
+          {/* Toast Container */}
+          <ToastContainer
+            position="top-right"
+            autoClose={3000}
+            hideProgressBar={false}
+            newestOnTop={false}
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+            theme="colored"
+            style={{
+              fontSize: '16px',
+              zIndex: 9999,
+            }}
+          />
+        </Box>
+      </DealerProvider>
     </Router>
   );
 }

@@ -39,7 +39,8 @@ import {
   Visibility as VisibilityIcon,
   Factory as FactoryIcon,
   CheckCircle as CheckCircleIcon,
-  Cancel as CancelIcon
+  Cancel as CancelIcon,
+  CloudUpload as CloudUploadIcon
 } from '@mui/icons-material';
 import { ordersService } from '../services/orders';
 import { factoriesService } from '../services/factories';
@@ -47,6 +48,7 @@ import { Order } from '../types/order';
 import { Factory } from '../types/factory';
 import { ConfirmationDialog } from './ConfirmationDialog';
 import { toast } from 'react-toastify';
+import { brandsService } from '../services/brands';
 
 const Orders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -63,6 +65,44 @@ const Orders = () => {
   const [selectedFactoryId, setSelectedFactoryId] = useState<number | ''>('');
   const [deadline, setDeadline] = useState<string>('');
   const [assigningFactory, setAssigningFactory] = useState(false);
+  const [brandLogoUploading, setBrandLogoUploading] = useState(false);
+  const [brandLogoPreview, setBrandLogoPreview] = useState<string | null>(null);
+
+  // Logo önizlemesi güncelle
+  useEffect(() => {
+    if (selectedOrder?.brand?.logoUrl) {
+      setBrandLogoPreview(selectedOrder.brand.logoUrl);
+    } else {
+      setBrandLogoPreview(null);
+    }
+  }, [selectedOrder]);
+
+  const handleBrandLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedOrder?.brand?.id) return;
+    if (!['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)) {
+      toast.error('Sadece PNG veya JPG dosyası yükleyebilirsiniz.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Logo en fazla 2MB olmalı.');
+      return;
+    }
+    setBrandLogoUploading(true);
+    try {
+      await brandsService.uploadBrandLogo(selectedOrder.brand.id, file);
+      // Logo yüklendikten sonra orders listesini güncelle
+      await loadOrders();
+      // Yeni logo önizlemesini göster
+      const updatedOrder = orders.find(o => o.id === selectedOrder.id);
+      setBrandLogoPreview(updatedOrder?.brand?.logoUrl || null);
+      toast.success('Logo başarıyla yüklendi!');
+    } catch (error) {
+      toast.error('Logo yüklenirken hata oluştu.');
+    } finally {
+      setBrandLogoUploading(false);
+    }
+  };
   
   // View order modal states
   const [viewOrderModalOpen, setViewOrderModalOpen] = useState(false);
@@ -457,11 +497,11 @@ const Orders = () => {
       {/* Main Table */}
       <Card sx={{ border: '1px solid #e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
         <TableContainer>
-          <Table>
-            <TableHead>
+        <Table>
+          <TableHead>
               <TableRow sx={{ backgroundColor: '#f9fafb' }}>
                 <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
-                  Sipariş & Marka
+                  Sipariş & Müşteri
                 </TableCell>
                 <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
                   Durum
@@ -475,11 +515,11 @@ const Orders = () => {
                 <TableCell align="center" sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
                   İşlemler
                 </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
+            </TableRow>
+          </TableHead>
+          <TableBody>
               {filteredOrders.length === 0 ? (
-                <TableRow>
+              <TableRow>
                   <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <ShoppingBagIcon sx={{ fontSize: 48, color: '#9ca3af', mb: 2 }} />
@@ -489,10 +529,10 @@ const Orders = () => {
                       <Typography variant="body2" sx={{ color: '#9ca3af' }}>
                         {searchTerm ? 'Farklı arama terimleri deneyin' : 'İlk siparişinizi eklemek için "Yeni Sipariş" butonuna tıklayın'}
                       </Typography>
-                    </Box>
-                  </TableCell>
-                </TableRow>
-              ) : (
+                  </Box>
+                </TableCell>
+              </TableRow>
+            ) : (
                 filteredOrders.map((order, index) => (
                   <TableRow 
                     key={order.id}
@@ -516,7 +556,7 @@ const Orders = () => {
                         </Avatar>
                         <Box>
                           <Typography variant="body1" sx={{ fontWeight: 600, color: '#1f2937' }}>
-                            {order.brand?.name || 'Bilinmeyen Marka'}
+                            {order.brand?.name || 'Bilinmeyen Müşteri'}
                           </Typography>
                           <Typography variant="body2" sx={{ color: '#6b7280' }}>
                             Sipariş #{order.id}
@@ -667,14 +707,38 @@ const Orders = () => {
         </DialogTitle>
         <DialogContent sx={{ pt: 3 }}>
           {selectedOrder && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151', mb: 1 }}>
-                Sipariş #{selectedOrder.id}
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                {selectedOrder.brand?.name || 'Bilinmeyen Marka'}
-              </Typography>
+            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Avatar
+                src={brandLogoPreview || undefined}
+                sx={{ width: 56, height: 56, backgroundColor: '#10b98120', color: '#10b981', fontWeight: 600, fontSize: '1.5rem' }}
+              >
+                {!brandLogoPreview && selectedOrder.brand?.name?.charAt(0).toUpperCase()}
+              </Avatar>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151', mb: 0.5 }}>
+                  {selectedOrder.brand?.name || 'Bilinmeyen Müşteri'}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                  Müşteri ID: #{selectedOrder.brand?.id}
+                </Typography>
+              </Box>
+              <Button
+                variant="outlined"
+                component="label"
+                size="small"
+                startIcon={<CloudUploadIcon />}
+                sx={{ ml: 2, fontWeight: 500, borderRadius: 2, textTransform: 'none' }}
+                disabled={brandLogoUploading}
+              >
+                {brandLogoUploading ? 'Yükleniyor...' : (brandLogoPreview ? 'Logoyu Değiştir' : 'Logo Yükle')}
+                <input type="file" accept="image/png, image/jpeg" hidden onChange={handleBrandLogoChange} />
+              </Button>
             </Box>
+          )}
+          {selectedOrder && !brandLogoPreview && (
+            <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
+              Bu müşterinin logosu yok. Fabrika ataması yapabilmek için önce logo yüklemelisiniz.
+            </Alert>
           )}
           
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -772,7 +836,7 @@ const Orders = () => {
           </Button>
           <Button 
             onClick={confirmAssignFactory}
-            disabled={!selectedFactoryId || !deadline || assigningFactory}
+            disabled={!selectedFactoryId || !deadline || assigningFactory || !brandLogoPreview}
             variant="contained"
             sx={{
               backgroundColor: '#8b5cf6',
@@ -863,7 +927,7 @@ const Orders = () => {
                     Sipariş #{viewOrder.id}
                   </Typography>
                   <Typography variant="body1" sx={{ color: '#6b7280', mb: 1 }}>
-                    {viewOrder.brand?.name || 'Bilinmeyen Marka'}
+                    {viewOrder.brand?.name || 'Bilinmeyen Müşteri'}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Chip 
@@ -926,17 +990,17 @@ const Orders = () => {
 
                 <Box>
                   <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151', mb: 2 }}>
-                    Marka Bilgileri
+                    Müşteri Bilgileri
                   </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" sx={{ color: '#6b7280' }}>Marka Adı:</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 500, color: '#374151' }}>
-                        {viewOrder.brand?.name || 'Bilinmeyen Marka'}
-                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#6b7280' }}>Müşteri Adı:</Typography>
+                                              <Typography variant="body2" sx={{ fontWeight: 500, color: '#374151' }}>
+                          {viewOrder.brand?.name || 'Bilinmeyen Müşteri'}
+                        </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" sx={{ color: '#6b7280' }}>Marka ID:</Typography>
+                                              <Typography variant="body2" sx={{ color: '#6b7280' }}>Müşteri ID:</Typography>
                       <Typography variant="body2" sx={{ fontWeight: 500, color: '#374151' }}>
                         #{viewOrder.brand?.id || 'N/A'}
                       </Typography>

@@ -215,7 +215,7 @@ const Login = () => {
                   }}
                 >
                   Hoş Geldiniz! 👋🏻
-                </Typography>
+            </Typography>
                 <Typography
                   variant="body2"
                   sx={{
@@ -224,31 +224,31 @@ const Login = () => {
                   }}
                 >
                   Hesabınıza giriş yapın ve yönetim paneline erişin
-                </Typography>
-              </Box>
+            </Typography>
+          </Box>
 
               {/* Compact Login Form */}
               <form onSubmit={handleSubmit} style={{ margin: 0, padding: 0 }}>
-                {error && (
+            {error && (
                   <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
                     <AlertTitle sx={{ fontWeight: 600 }}>Giriş Hatası</AlertTitle>
-                    {error}
-                  </Alert>
-                )}
+                {error}
+              </Alert>
+            )}
 
-                <TextField
-                  margin="normal"
-                  required
-                  fullWidth
-                  id="email"
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="email"
                   label="Email"
-                  name="email"
-                  autoComplete="email"
-                  autoFocus
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+              name="email"
+              autoComplete="email"
+              autoFocus
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
                   placeholder="Email"
-                  InputProps={{
+              InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
                         <EmailOutlined sx={{ color: '#64748b', fontSize: 20 }} />
@@ -278,22 +278,22 @@ const Login = () => {
                         color: '#1e3a8a',
                       },
                     },
-                  }}
-                />
+              }}
+            />
 
-                <TextField
-                  margin="normal"
-                  required
-                  fullWidth
-                  name="password"
-                  label="Şifre"
-                  type="password"
-                  id="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              name="password"
+              label="Şifre"
+              type="password"
+              id="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
                   placeholder="Şifre"
-                  InputProps={{
+              InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
                         <LockOutlined sx={{ color: '#64748b', fontSize: 20 }} />
@@ -323,14 +323,14 @@ const Login = () => {
                         color: '#1e3a8a',
                       },
                     },
-                  }}
-                />
+              }}
+            />
 
-                <Button
-                  type="submit"
-                  fullWidth
-                  variant="contained"
-                  disabled={isLoading}
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              disabled={isLoading}
                   sx={{
                     py: 1.5,
                     fontSize: '1rem',
@@ -350,7 +350,7 @@ const Login = () => {
                       boxShadow: 'none',
                     },
                   }}
-                >
+            >
                   {isLoading ? (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <CircularProgress size={20} sx={{ color: 'white' }} />
@@ -359,7 +359,7 @@ const Login = () => {
                   ) : (
                     'Sistem Girişi'
                   )}
-                </Button>
+            </Button>
 
                 <Box
                   sx={{
@@ -400,11 +400,11 @@ const Login = () => {
                   >
                     Şifremi unuttum?
                   </button>
-                </Box>
+          </Box>
               </form>
             </CardContent>
           </Card>
-        </Container>
+      </Container>
       </Box>
     </Box>
   );

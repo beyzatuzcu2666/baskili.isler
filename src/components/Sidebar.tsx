@@ -16,6 +16,7 @@ import {
   SwipeableDrawer,
   Chip
 } from '@mui/material';
+import { useDealer } from '../contexts/DealerContext';
 
 import MenuIcon from '@mui/icons-material/Menu';
 import InventoryIcon from '@mui/icons-material/Inventory';
@@ -43,6 +44,9 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
   const theme = useTheme();
   const isMobileQuery = useMediaQuery(theme.breakpoints.down('md'));
   
+  // Dealer context
+  const { isSuperAdmin } = useDealer();
+  
   // Debounced mobile state to prevent unnecessary re-renders
   const [isMobile, setIsMobile] = useState(isMobileQuery);
 
@@ -64,11 +68,19 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
       description: 'Ürün kataloğu'
     },
     { 
-      text: 'Markalar', 
+      text: 'Müşteriler', 
       path: '/brands', 
       icon: <BusinessIcon />,
       color: '#10b981',
-      description: 'Marka yönetimi'
+      description: 'Müşteri yönetimi'
+    },
+    { 
+      text: 'Bayiler', 
+      path: '/dealers', 
+      icon: <BusinessIcon />,
+      color: '#8b5cf6',
+      description: 'Bayi yönetimi',
+      showOnlyForSuperAdmin: true
     },
     { 
       text: 'Teklifler', 
@@ -178,7 +190,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
     >
       <ListItem 
         onClick={() => handleNavigation(item.path)}
-        sx={{
+      sx={{
           mb: 1,
           borderRadius: 2,
           cursor: 'pointer',
@@ -275,7 +287,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
               borderRadius: '50%',
               backgroundColor: item.color,
               boxShadow: `0 0 8px ${item.color}60`,
-            }}
+      }}
           />
         )}
       </ListItem>
@@ -283,7 +295,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
   );
 
   const DrawerContent = () => (
-    <Box sx={{ 
+      <Box sx={{
       height: '100%', 
       display: 'flex', 
       flexDirection: 'column',
@@ -292,9 +304,9 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
       {/* Header Section */}
       <Box
         sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
           pt: 3,
           pb: 2,
           px: 2,
@@ -318,7 +330,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
               }}
             >
               <PrintIcon sx={{ fontSize: 28, color: 'white' }} />
-            </Box>
+      </Box>
             
             <Typography
               variant="h6"
@@ -384,70 +396,87 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
               mb: 1,
               display: 'block',
               px: 2,
-            }}
-          >
+              }}
+            >
             Ana Menü
           </Typography>
         )}
         
         <List sx={{ padding: 0, mb: 2 }}>
-          {menuItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            return renderMenuItem(item, isActive);
-          })}
+          {menuItems
+            .filter(item => {
+              // Super admin için sadece Dealers menüsünü göster
+              if (isSuperAdmin) {
+                return item.path === '/dealers';
+              }
+              // Diğer kullanıcılar için normal filtreleme
+              return !item.showOnlyForSuperAdmin || isSuperAdmin;
+            })
+            .map((item) => {
+              const isActive = location.pathname === item.path;
+              return renderMenuItem(item, isActive);
+            })}
         </List>
 
-        {/* Yönetim Bölümü */}
-        {(!isCollapsed || isMobile) && (
-          <Typography
-            variant="caption"
-            sx={{
-              color: 'rgba(255, 255, 255, 0.5)',
-              fontSize: '0.7rem',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: 1,
-              mb: 1,
-              display: 'block',
-              px: 2,
-            }}
-          >
-            Yönetim
-          </Typography>
+        {/* Yönetim Bölümü - Super admin için gizli */}
+        {!isSuperAdmin && (
+          <>
+            {(!isCollapsed || isMobile) && (
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: 1,
+                  mb: 1,
+                  display: 'block',
+                  px: 2,
+                }}
+              >
+                Yönetim
+              </Typography>
+            )}
+            
+            <List sx={{ padding: 0, mb: 2 }}>
+              {managementItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                return renderMenuItem(item, isActive);
+              })}
+            </List>
+          </>
         )}
-        
-        <List sx={{ padding: 0, mb: 2 }}>
-          {managementItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            return renderMenuItem(item, isActive);
-          })}
-        </List>
 
-        {/* Ayarlar Bölümü */}
-        {(!isCollapsed || isMobile) && (
-          <Typography
-            variant="caption"
-            sx={{
-              color: 'rgba(255, 255, 255, 0.5)',
-              fontSize: '0.7rem',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: 1,
-              mb: 1,
-              display: 'block',
-              px: 2,
-            }}
-          >
-            Ayarlar
-          </Typography>
+        {/* Ayarlar Bölümü - Super admin için gizli */}
+        {!isSuperAdmin && (
+          <>
+            {(!isCollapsed || isMobile) && (
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: 1,
+                  mb: 1,
+                  display: 'block',
+                  px: 2,
+                }}
+              >
+                Ayarlar
+              </Typography>
+            )}
+            
+            <List sx={{ padding: 0 }}>
+              {settingsItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                return renderMenuItem(item, isActive);
+              })}
+            </List>
+          </>
         )}
-        
-        <List sx={{ padding: 0 }}>
-          {settingsItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            return renderMenuItem(item, isActive);
-          })}
-        </List>
       </Box>
 
       {/* Footer */}
@@ -558,7 +587,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
           }}
         >
           <DrawerContent />
-        </Drawer>
+    </Drawer>
       )}
     </>
   );
