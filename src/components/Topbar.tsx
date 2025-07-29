@@ -3,7 +3,6 @@ import {
     AppBar,
     Box,
     Toolbar,
-    Typography,
     IconButton,
     Menu,
     MenuItem,
@@ -15,9 +14,6 @@ import {
     ListItemText,
     useTheme,
     useMediaQuery,
-    Select,
-    FormControl,
-    Chip,
 } from '@mui/material';
 import {
     NotificationsNone as NotificationsIcon,
@@ -25,13 +21,12 @@ import {
     ExitToApp as LogoutIcon,
     Menu as MenuIcon,
     FullscreenExit as FullscreenIcon,
-    Business as BusinessIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
 import { notificationsService } from '../services/notifications';
 import NotificationPanel from './NotificationPanel';
-import { useDealer } from '../contexts/DealerContext';
+
 
 interface TopbarProps {
   drawerWidth: number;
@@ -47,8 +42,7 @@ const Topbar = ({ drawerWidth, isCollapsed, onToggleSidebar }: TopbarProps) => {
     const theme = useTheme();
     const isMobileQuery = useMediaQuery(theme.breakpoints.down('md'));
     
-    // Dealer context
-    const { selectedDealer, setSelectedDealer, availableDealers, isSuperAdmin, currentUser } = useDealer();
+
     
     // Debounced mobile state to prevent unnecessary re-renders
     const [isMobile, setIsMobile] = useState(isMobileQuery);
@@ -155,96 +149,7 @@ const Topbar = ({ drawerWidth, isCollapsed, onToggleSidebar }: TopbarProps) => {
                         </IconButton>
                     </Tooltip>
 
-                    {/* Bayi Seçici - Sadece Super Admin için - Şimdilik kaldırıldı */}
-                    {/* {isSuperAdmin && availableDealers.length > 0 && (
-                        <FormControl size="small" sx={{ minWidth: 200 }}>
-                            <Select
-                                value={selectedDealer?.id || ''}
-                                onChange={(e) => {
-                                    const dealerId = e.target.value as number;
-                                    const dealer = availableDealers.find(d => d.id === dealerId);
-                                    setSelectedDealer(dealer || null);
-                                }}
-                                displayEmpty
-                                sx={{
-                                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                                    borderRadius: '12px',
-                                    '& .MuiOutlinedInput-notchedOutline': {
-                                        border: 'none',
-                                    },
-                                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                                        border: '1px solid #10b981',
-                                    },
-                                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                        border: '2px solid #10b981',
-                                    },
-                                }}
-                                renderValue={(value) => {
-                                    if (!value) {
-                                        return (
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <BusinessIcon sx={{ fontSize: 16, color: '#64748b' }} />
-                                                <Typography variant="body2" sx={{ color: '#64748b' }}>
-                                                    Bayi Seçin
-                                                </Typography>
-                                            </Box>
-                                        );
-                                    }
-                                    const dealer = availableDealers.find(d => d.id === value);
-                                    return (
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <BusinessIcon sx={{ fontSize: 16, color: '#10b981' }} />
-                                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                {dealer?.name}
-                                            </Typography>
-                                            <Chip 
-                                                label={dealer?.code} 
-                                                size="small" 
-                                                sx={{ 
-                                                    height: 20, 
-                                                    fontSize: '0.7rem',
-                                                    backgroundColor: '#10b98120',
-                                                    color: '#10b981'
-                                                }} 
-                                            />
-                                        </Box>
-                                    );
-                                }}
-                            >
-                                {availableDealers.map((dealer) => (
-                                    <MenuItem key={dealer.id} value={dealer.id}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                                            <BusinessIcon sx={{ fontSize: 16, color: '#10b981' }} />
-                                            <Box sx={{ flex: 1 }}>
-                                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                    {dealer.name}
-                                                </Typography>
-                                                <Typography variant="caption" sx={{ color: '#64748b' }}>
-                                                    {dealer.code}
-                                                </Typography>
-                                            </Box>
-                                        </Box>
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    )} */}
 
-                    {/* Aktif Bayi Rozeti - Tüm kullanıcılar için */}
-                    {selectedDealer && !isSuperAdmin && (
-                        <Chip
-                            icon={<BusinessIcon />}
-                            label={`${selectedDealer.name} (${selectedDealer.code})`}
-                            sx={{
-                                backgroundColor: '#10b98120',
-                                color: '#10b981',
-                                fontWeight: 500,
-                                '& .MuiChip-icon': {
-                                    color: '#10b981',
-                                }
-                            }}
-                        />
-                    )}
                 </Box>
 
                 {/* Sağ Taraf */}
@@ -297,34 +202,7 @@ const Topbar = ({ drawerWidth, isCollapsed, onToggleSidebar }: TopbarProps) => {
 
                     {/* Profil */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 1 }}>
-                        {/* Kullanıcı Bilgisi (Desktop) */}
-                        {!isMobile && currentUser && (
-                            <Box sx={{ textAlign: 'right' }}>
-                                <Typography
-                                    variant="body2"
-                                    sx={{
-                                        fontWeight: 600,
-                                        color: '#1e293b',
-                                        fontSize: '0.875rem',
-                                        lineHeight: 1.2,
-                                    }}
-                                >
-                                    {`${currentUser.firstName} ${currentUser.lastName}`}
-                                </Typography>
-                                <Typography
-                                    variant="caption"
-                                    sx={{
-                                        color: '#64748b',
-                                        fontSize: '0.75rem',
-                                    }}
-                                >
-                                    {currentUser.role === 'SUPER_ADMIN' ? 'Super Admin' :
-                                     currentUser.role === 'DEALER_ADMIN' ? 'Bayi Admin' :
-                                     currentUser.role === 'DEALER_USER' ? 'Bayi Kullanıcı' :
-                                     currentUser.role === 'FACTORY_USER' ? 'Fabrika Kullanıcı' : 'Kullanıcı'}
-                                </Typography>
-                            </Box>
-                        )}
+
 
                         {/* Avatar */}
                         <Tooltip title="Profil">

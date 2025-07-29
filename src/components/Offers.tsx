@@ -56,6 +56,7 @@ import { ConfirmationDialog } from './ConfirmationDialog';
 import { BrandFormModal } from './BrandFormModal';
 import { toast } from 'react-toastify';
 import { jsPDF } from 'jspdf';
+import { authService } from '../services/auth';
 
 const Offers = () => {
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -475,6 +476,16 @@ const Offers = () => {
     }
   };
 
+  // Farklı KDV oranlarını tespit eden fonksiyon
+  const getTaxRateDisplay = (items: { taxRate: number }[]) => {
+    const uniqueTaxRates = Array.from(new Set(items.map(item => item.taxRate)));
+    if (uniqueTaxRates.length === 1) {
+      return `%${uniqueTaxRates[0]}`;
+    } else {
+      return 'Farklı oranlar';
+    }
+  };
+
   const generatePDF = (offer: Offer) => {
     const doc = new jsPDF();
     
@@ -566,7 +577,7 @@ const Offers = () => {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text(`Net ${netTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`, 150, finalY);
-    doc.text(`KDV (%${offer.items[0]?.taxRate || 18}) ${taxTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`, 150, finalY + 5);
+    doc.text(`KDV (${getTaxRateDisplay(offer.items)}) ${taxTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`, 150, finalY + 5);
     doc.text(`Toplam ${grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`, 150, finalY + 10);
     
     // Şartlar ve koşullar
@@ -931,7 +942,7 @@ const Offers = () => {
                             <VisibilityIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                        {offer.status === 'OFFER_SENT' && (
+                        {offer.status === 'OFFER_SENT' && authService.canConvertOfferToOrder() && (
                           <Tooltip title="Siparişe Çevir">
                             <IconButton 
                               size="small"
@@ -1155,14 +1166,31 @@ const Offers = () => {
                       inputProps={{ min: 1 }}
                   />
                     
-                  <TextField
-                      size="small"
-                      label="Birim Fiyat"
-                    type="number"
-                      value={item.unitPrice}
-                      onChange={(e) => updateEditItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                      inputProps={{ min: 0, step: 0.01 }}
-                  />
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    <TextField
+                        size="small"
+                        label="Birim Fiyat"
+                      type="number"
+                        value={item.unitPrice}
+                        onChange={(e) => updateEditItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                        inputProps={{ min: 0, step: 0.01 }}
+                    />
+                    {item.productId > 0 && (() => {
+                      const selectedProduct = products.find(p => p.id === item.productId);
+                      return selectedProduct ? (
+                        <Typography 
+                          variant="caption" 
+                          sx={{ 
+                            color: '#6b7280', 
+                            fontSize: '0.75rem',
+                            fontStyle: 'italic'
+                          }}
+                        >
+                          Asıl fiyat: ₺{selectedProduct.unitPrice.toFixed(2)}
+                        </Typography>
+                      ) : null;
+                    })()}
+                  </Box>
 
                   <TextField
                       size="small"
@@ -1229,7 +1257,9 @@ const Offers = () => {
                         <Typography variant="body2" sx={{ color: '#059669', fontWeight: 600 }}>₺{netTotal.toFixed(2)}</Typography>
                       </Box>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography variant="body2" sx={{ color: '#059669' }}>KDV:</Typography>
+                        <Typography variant="body2" sx={{ color: '#059669' }}>
+                          KDV ({getTaxRateDisplay(editOffer.items)}):
+                        </Typography>
                         <Typography variant="body2" sx={{ color: '#059669', fontWeight: 600 }}>₺{taxTotal.toFixed(2)}</Typography>
                       </Box>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 0.5, borderTop: '1px solid #10b981' }}>
@@ -1687,7 +1717,7 @@ const Offers = () => {
           >
             PDF İndir
           </Button>
-          {viewOffer?.status === 'OFFER_SENT' && (
+          {viewOffer?.status === 'OFFER_SENT' && authService.canConvertOfferToOrder() && (
             <Button
               variant="contained"
               startIcon={<ShoppingCartIcon />}
@@ -1876,14 +1906,31 @@ const Offers = () => {
                      inputProps={{ min: 1 }}
                    />
                    
-                   <TextField
-                     size="small"
-                     label="Birim Fiyat"
-                     type="number"
-                     value={item.unitPrice}
-                     onChange={(e) => updateItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                     inputProps={{ min: 0, step: 0.01 }}
-                   />
+                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                     <TextField
+                       size="small"
+                       label="Birim Fiyat"
+                       type="number"
+                       value={item.unitPrice}
+                       onChange={(e) => updateItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                       inputProps={{ min: 0, step: 0.01 }}
+                     />
+                     {item.productId > 0 && (() => {
+                       const selectedProduct = products.find(p => p.id === item.productId);
+                       return selectedProduct ? (
+                         <Typography 
+                           variant="caption" 
+                           sx={{ 
+                             color: '#6b7280', 
+                             fontSize: '0.75rem',
+                             fontStyle: 'italic'
+                           }}
+                         >
+                           Asıl fiyat: ₺{selectedProduct.unitPrice.toFixed(2)}
+                         </Typography>
+                       ) : null;
+                     })()}
+                   </Box>
 
                    <TextField
                      size="small"
@@ -1950,7 +1997,9 @@ const Offers = () => {
                        <Typography variant="body2" sx={{ color: '#059669', fontWeight: 600 }}>₺{netTotal.toFixed(2)}</Typography>
                      </Box>
                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                       <Typography variant="body2" sx={{ color: '#059669' }}>KDV:</Typography>
+                       <Typography variant="body2" sx={{ color: '#059669' }}>
+                         KDV ({getTaxRateDisplay(newOffer.items)}):
+                       </Typography>
                        <Typography variant="body2" sx={{ color: '#059669', fontWeight: 600 }}>₺{taxTotal.toFixed(2)}</Typography>
                      </Box>
                      <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 0.5, borderTop: '1px solid #10b981' }}>

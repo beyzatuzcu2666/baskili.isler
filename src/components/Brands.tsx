@@ -41,7 +41,7 @@ import {
 } from '@mui/icons-material';
 import { BrandFormModal } from './BrandFormModal';
 import { ConfirmationDialog } from './ConfirmationDialog';
-import { PageHeader } from './PageHeader';
+
 import { toast } from 'react-toastify';
 
 const Brands: React.FC = () => {
@@ -228,10 +228,14 @@ const Brands: React.FC = () => {
       backgroundColor: 'transparent'
     }}>
       {/* Page Header */}
-      <PageHeader 
-        title="Müşteri Yönetimi"
-        subtitle="Müşterilerinizi yönetin, düzenleyin ve takip edin"
-      />
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 700, color: '#1e293b', mb: 1 }}>
+          Müşteri Yönetimi
+        </Typography>
+        <Typography variant="body1" sx={{ color: '#64748b' }}>
+          Müşterilerinizi yönetin, düzenleyin ve takip edin
+        </Typography>
+      </Box>
 
       {/* Statistics Cards */}
       <Box sx={{ 

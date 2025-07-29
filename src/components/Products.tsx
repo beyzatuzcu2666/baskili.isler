@@ -244,7 +244,7 @@ const Products = () => {
     );
   }
 
-    return (
+  return (
     <Box sx={{ p: { xs: 2, sm: 3 }, pl: { xs: 2, sm: 3, md: 3 }, pr: { xs: 2, sm: 3, md: 3 } }}>
       {/* Header */}
       <Box sx={{ mb: 3 }}>

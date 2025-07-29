@@ -63,5 +63,26 @@ export const ordersService = {
       console.error('Error cancelling order:', error);
       throw error;
     }
+  },
+
+  // FACTORY_USER için sipariş durumu güncelleme
+  updateStatus: async (orderId: number, newStatus: string): Promise<void> => {
+    try {
+      // PATCH /orders/{orderId}/status
+      await http.patch(`${BASE_URL}/${orderId}/status`, { status: newStatus });
+    } catch (error: any) {
+      console.error('Error updating order status:', error);
+      console.error('Request details:', {
+        orderId,
+        newStatus,
+        url: `${BASE_URL}/${orderId}/status`,
+        payload: { status: newStatus }
+      });
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response data:', error.response.data);
+      }
+      throw error;
+    }
   }
 };

@@ -1,67 +1,53 @@
-import { http } from './http';
-import { User, UserCreateDto, UserUpdateDto, UserResponseDto } from '../types/user';
+import http from './http';
+import { User } from '../types/user';
 
 export const usersService = {
-  /**
-   * Tüm kullanıcıları getir
-   */
-  async getAll(): Promise<User[]> {
-    return await http.get('/users');
+  async getUsers(): Promise<User[]> {
+    try {
+      const response = await http.get('/users');
+      return response || [];
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      throw error;
+    }
   },
 
-  /**
-   * ID ile kullanıcı getir
-   */
-  async getById(id: number): Promise<User> {
-    return await http.get(`/users/${id}`);
+  async createUser(userData: Omit<User, 'id'>): Promise<User> {
+    try {
+      const response = await http.post('/users', userData);
+      return response;
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
   },
 
-  /**
-   * Mevcut kullanıcı bilgilerini getir
-   */
-  async getCurrentUser(): Promise<User> {
-    return await http.get('/auth/me');
+  async updateUser(userId: number, userData: Partial<Omit<User, 'id'>>): Promise<User> {
+    try {
+      const response = await http.patch(`/users/${userId}`, userData);
+      return response;
+    } catch (error) {
+      console.error('Error updating user:', error);
+      throw error;
+    }
   },
 
-  /**
-   * Yeni kullanıcı oluştur
-   */
-  async create(user: UserCreateDto): Promise<UserResponseDto> {
-    return await http.post('/users', user);
+  async deleteUser(userId: number): Promise<void> {
+    try {
+      await http.delete(`/users/${userId}`);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      throw error;
+    }
   },
 
-  /**
-   * Kullanıcı güncelle
-   */
-  async update(id: number, user: UserUpdateDto): Promise<User> {
-    return await http.patch(`/users/${id}`, user);
-  },
-
-  /**
-   * Kullanıcı sil
-   */
-  async delete(id: number): Promise<void> {
-    await http.delete(`/users/${id}`);
-  },
-
-  /**
-   * Kullanıcıyı aktifleştir
-   */
-  async activate(id: number): Promise<User> {
-    return await http.patch(`/users/${id}/activate`, {});
-  },
-
-  /**
-   * Kullanıcıyı pasifleştir
-   */
-  async deactivate(id: number): Promise<User> {
-    return await http.patch(`/users/${id}/deactivate`, {});
-  },
-
-  /**
-   * Şifre sıfırlama
-   */
-  async resetPassword(id: number): Promise<{ temporaryPassword: string }> {
-    return await http.post(`/users/${id}/reset-password`, {});
+  async getUserById(userId: number): Promise<User> {
+    try {
+      const response = await http.get(`/users/${userId}`);
+      return response;
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      throw error;
+    }
   }
 }; 

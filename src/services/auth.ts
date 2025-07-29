@@ -92,13 +92,59 @@ export const authService = {
     return userRole === role;
   },
 
-  // Admin mi kontrol et
-  isAdmin: () => {
-    return authService.hasRole('ADMIN');
+  // Belirli rollerden birine sahip mi kontrol et
+  hasAnyRole: (roles: string[]) => {
+    const userRole = authService.getUserRole();
+    return roles.includes(userRole);
   },
 
-  // User mi kontrol et
-  isUser: () => {
-    return authService.hasRole('USER');
+  // DEALER_USER rolü için kısıtlamalar
+  isDealerUser: () => {
+    return authService.hasRole('DEALER_USER');
+  },
+
+  // DEALER_ADMIN rolü için kısıtlamalar
+  isDealerAdmin: () => {
+    return authService.hasRole('DEALER_ADMIN');
+  },
+
+  // SUPER_ADMIN rolü için kısıtlamalar
+  isSuperAdmin: () => {
+    return authService.hasRole('SUPER_ADMIN');
+  },
+
+  // FACTORY_USER rolü için kısıtlamalar
+  isFactoryUser: () => {
+    return authService.hasRole('FACTORY_USER');
+  },
+
+  // Siparişleri görme yetkisi
+  canViewOrders: () => {
+    const userRole = authService.getUserRole();
+    return ['SUPER_ADMIN', 'DEALER_ADMIN', 'FACTORY_USER'].includes(userRole);
+  },
+
+  // Teklifi siparişe dönüştürme yetkisi
+  canConvertOfferToOrder: () => {
+    const userRole = authService.getUserRole();
+    return ['SUPER_ADMIN', 'DEALER_ADMIN'].includes(userRole);
+  },
+
+  // Fabrikaları görme yetkisi
+  canViewFactories: () => {
+    const userRole = authService.getUserRole();
+    return ['SUPER_ADMIN', 'FACTORY_USER'].includes(userRole);
+  },
+
+  // Kullanıcı ekleme yetkisi
+  canManageUsers: () => {
+    const userRole = authService.getUserRole();
+    return ['SUPER_ADMIN'].includes(userRole);
+  },
+
+  // Bildirimleri görme yetkisi
+  canViewNotifications: () => {
+    const userRole = authService.getUserRole();
+    return ['SUPER_ADMIN', 'DEALER_ADMIN', 'FACTORY_USER'].includes(userRole);
   }
 };

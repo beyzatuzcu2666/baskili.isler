@@ -16,7 +16,7 @@ import {
   SwipeableDrawer,
   Chip
 } from '@mui/material';
-import { useDealer } from '../contexts/DealerContext';
+
 
 import MenuIcon from '@mui/icons-material/Menu';
 import InventoryIcon from '@mui/icons-material/Inventory';
@@ -24,13 +24,11 @@ import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import BusinessIcon from '@mui/icons-material/Business';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import PrintIcon from '@mui/icons-material/Print';
-import SettingsIcon from '@mui/icons-material/Settings';
 import FactoryIcon from '@mui/icons-material/Factory';
 import PersonIcon from '@mui/icons-material/Person';
 import NotificationsIcon from '@mui/icons-material/Notifications';
-import SecurityIcon from '@mui/icons-material/Security';
-import HelpIcon from '@mui/icons-material/Help';
 import { DRAWER_WIDTH, COLLAPSED_DRAWER_WIDTH } from '../App';
+import { authService } from '../services/auth';
 
 interface SidebarProps {
   isCollapsed: boolean;
@@ -44,8 +42,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
   const theme = useTheme();
   const isMobileQuery = useMediaQuery(theme.breakpoints.down('md'));
   
-  // Dealer context
-  const { isSuperAdmin } = useDealer();
+
   
   // Debounced mobile state to prevent unnecessary re-renders
   const [isMobile, setIsMobile] = useState(isMobileQuery);
@@ -65,43 +62,40 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
       path: '/products', 
       icon: <InventoryIcon />,
       color: '#64748b',
-      description: 'Ürün kataloğu'
+      description: 'Ürün kataloğu',
+      requiredRoles: ['SUPER_ADMIN', 'DEALER_ADMIN', 'DEALER_USER', 'FACTORY_USER']
     },
     { 
       text: 'Müşteriler', 
       path: '/brands', 
       icon: <BusinessIcon />,
       color: '#10b981',
-      description: 'Müşteri yönetimi'
-    },
-    { 
-      text: 'Bayiler', 
-      path: '/dealers', 
-      icon: <BusinessIcon />,
-      color: '#8b5cf6',
-      description: 'Bayi yönetimi',
-      showOnlyForSuperAdmin: true
+      description: 'Müşteri yönetimi',
+      requiredRoles: ['SUPER_ADMIN', 'DEALER_ADMIN', 'DEALER_USER', 'FACTORY_USER']
     },
     { 
       text: 'Teklifler', 
       path: '/offers', 
       icon: <LocalOfferIcon />,
       color: '#f97316',
-      description: 'Fiyat teklifleri'
+      description: 'Fiyat teklifleri',
+      requiredRoles: ['SUPER_ADMIN', 'DEALER_ADMIN', 'DEALER_USER', 'FACTORY_USER']
     },
     { 
       text: 'Siparişler', 
       path: '/orders', 
       icon: <ShoppingCartIcon />,
       color: '#1e3a8a',
-      description: 'Sipariş takibi'
+      description: 'Sipariş takibi',
+      requiredRoles: ['SUPER_ADMIN', 'DEALER_ADMIN', 'FACTORY_USER']
     },
     { 
       text: 'Bildirimler', 
       path: '/notifications', 
       icon: <NotificationsIcon />,
       color: '#f59e0b',
-      description: 'Sistem bildirimleri'
+      description: 'Sistem bildirimleri',
+      requiredRoles: ['SUPER_ADMIN', 'DEALER_ADMIN', 'FACTORY_USER']
     },
   ];
 
@@ -112,7 +106,8 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
       icon: <FactoryIcon />,
       color: '#8b5cf6',
       description: 'Fabrika yönetimi',
-      isNew: true
+      isNew: true,
+      requiredRoles: ['SUPER_ADMIN', 'FACTORY_USER']
     },
     {
       text: 'Kullanıcılar',
@@ -120,40 +115,12 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
       icon: <PersonIcon />,
       color: '#06b6d4',
       description: 'Kullanıcı yönetimi',
-      isNew: true
+      isNew: true,
+      requiredRoles: ['SUPER_ADMIN']
     }
   ];
 
-  const settingsItems = [
-    {
-      text: 'Genel Ayarlar',
-      path: '/settings/general',
-      icon: <SettingsIcon />,
-      color: '#6b7280',
-      description: 'Sistem ayarları'
-    },
-    {
-      text: 'Bildirimler',
-      path: '/settings/notifications',
-      icon: <NotificationsIcon />,
-      color: '#f59e0b',
-      description: 'Bildirim ayarları'
-    },
-    {
-      text: 'Güvenlik',
-      path: '/settings/security',
-      icon: <SecurityIcon />,
-      color: '#ef4444',
-      description: 'Güvenlik ayarları'
-    },
-    {
-      text: 'Yardım',
-      path: '/settings/help',
-      icon: <HelpIcon />,
-      color: '#3b82f6',
-      description: 'Yardım ve destek'
-    }
-  ];
+
 
   const handleDrawerToggle = () => {
     if (isMobile) {
@@ -164,12 +131,6 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
   };
 
   const handleNavigation = (path: string) => {
-    // Mock navigation for new items (except factory which is now implemented)
-    if (path === '/users' || path.startsWith('/settings/')) {
-      alert(`${path} sayfası henüz geliştiriliyor...`);
-      return;
-    }
-    
     navigate(path);
     if (isMobile) {
       setMobileOpen(false);
@@ -180,6 +141,32 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
     if (isMobile) return DRAWER_WIDTH;
     return isCollapsed ? COLLAPSED_DRAWER_WIDTH : DRAWER_WIDTH;
   };
+
+  // Kullanıcının rolüne göre menü öğelerini filtrele
+  const filterMenuItemsByRole = (items: any[]) => {
+    const userRole = authService.getUserRole();
+    return items.filter(item => {
+      if (!item.requiredRoles) return true;
+      return item.requiredRoles.includes(userRole);
+    });
+  };
+
+  const userRole = authService.getUserRole();
+
+  // FACTORY_USER ise sadece Siparişler menüsü
+  const filteredMenuItems = userRole === 'FACTORY_USER'
+    ? [
+        {
+          text: 'Siparişler',
+          path: '/orders',
+          icon: <ShoppingCartIcon />,
+          color: '#1e3a8a',
+          description: 'Sipariş takibi',
+        },
+      ]
+    : filterMenuItemsByRole(menuItems);
+
+  const filteredManagementItems = userRole === 'FACTORY_USER' ? [] : filterMenuItemsByRole(managementItems);
 
   const renderMenuItem = (item: any, isActive: boolean) => (
     <Tooltip 
@@ -403,80 +390,39 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
         )}
         
         <List sx={{ padding: 0, mb: 2 }}>
-          {menuItems
-            .filter(item => {
-              // Super admin için sadece Dealers menüsünü göster
-              if (isSuperAdmin) {
-                return item.path === '/dealers';
-              }
-              // Diğer kullanıcılar için normal filtreleme
-              return !item.showOnlyForSuperAdmin || isSuperAdmin;
-            })
-            .map((item) => {
-              const isActive = location.pathname === item.path;
-              return renderMenuItem(item, isActive);
-            })}
+          {filteredMenuItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return renderMenuItem(item, isActive);
+          })}
         </List>
 
-        {/* Yönetim Bölümü - Super admin için gizli */}
-        {!isSuperAdmin && (
-          <>
-            {(!isCollapsed || isMobile) && (
-              <Typography
-                variant="caption"
-                sx={{
-                  color: 'rgba(255, 255, 255, 0.5)',
-                  fontSize: '0.7rem',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: 1,
-                  mb: 1,
-                  display: 'block',
-                  px: 2,
-                }}
-              >
-                Yönetim
-              </Typography>
-            )}
-            
-            <List sx={{ padding: 0, mb: 2 }}>
-              {managementItems.map((item) => {
-                const isActive = location.pathname === item.path;
-                return renderMenuItem(item, isActive);
-              })}
-            </List>
-          </>
+        {/* Yönetim Bölümü */}
+        {(!isCollapsed || isMobile) && (
+          <Typography
+            variant="caption"
+            sx={{
+              color: 'rgba(255, 255, 255, 0.5)',
+              fontSize: '0.7rem',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: 1,
+              mb: 1,
+              display: 'block',
+              px: 2,
+            }}
+          >
+            Yönetim
+          </Typography>
         )}
+        
+        <List sx={{ padding: 0, mb: 2 }}>
+          {filteredManagementItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return renderMenuItem(item, isActive);
+          })}
+        </List>
 
-        {/* Ayarlar Bölümü - Super admin için gizli */}
-        {!isSuperAdmin && (
-          <>
-            {(!isCollapsed || isMobile) && (
-              <Typography
-                variant="caption"
-                sx={{
-                  color: 'rgba(255, 255, 255, 0.5)',
-                  fontSize: '0.7rem',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: 1,
-                  mb: 1,
-                  display: 'block',
-                  px: 2,
-                }}
-              >
-                Ayarlar
-              </Typography>
-            )}
-            
-            <List sx={{ padding: 0 }}>
-              {settingsItems.map((item) => {
-                const isActive = location.pathname === item.path;
-                return renderMenuItem(item, isActive);
-              })}
-            </List>
-          </>
-        )}
+
       </Box>
 
       {/* Footer */}

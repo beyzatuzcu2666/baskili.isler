@@ -40,15 +40,19 @@ import {
   Factory as FactoryIcon,
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
-  CloudUpload as CloudUploadIcon
+  CloudUpload as CloudUploadIcon,
+  PlayArrow as PlayArrowIcon,
+  Inventory as InventoryIcon,
+  LocalShipping as LocalShippingIcon
 } from '@mui/icons-material';
 import { ordersService } from '../services/orders';
 import { factoriesService } from '../services/factories';
-import { Order } from '../types/order';
+import { Order, OrderStatus, OrderStatusLabels, OrderStatusColors } from '../types/order';
 import { Factory } from '../types/factory';
 import { ConfirmationDialog } from './ConfirmationDialog';
 import { toast } from 'react-toastify';
 import { brandsService } from '../services/brands';
+import { authService } from '../services/auth';
 
 const Orders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -57,6 +61,8 @@ const Orders = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
+  
+
   
   // Factory assignment modal states
   const [assignFactoryModalOpen, setAssignFactoryModalOpen] = useState(false);
@@ -126,11 +132,9 @@ const Orders = () => {
     }
   };
 
-  const filteredOrders = orders.filter(order =>
-    order.status?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.id.toString().includes(searchTerm) ||
-    order.brand?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // FACTORY_USER için geçici olarak tüm siparişler (backend endpoint hazır olunca değişecek)
+  const userRole = authService.getUserRole();
+  const filteredOrders = orders;
 
   const loadOrders = async () => {
     try {
@@ -263,38 +267,37 @@ const Orders = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'pending':
-        return '#f97316';
-      case 'in_progress':
-        return '#8b5cf6';
-      case 'in_production':
-        return '#3b82f6';
-      case 'completed':
-        return '#10b981';
-      case 'cancelled':
-        return '#ef4444';
-      default:
-        return '#6b7280';
+  // FACTORY_USER için sipariş durumu güncelleme
+  const handleUpdateOrderStatus = async (orderId: number, newStatus: OrderStatus) => {
+    try {
+      await ordersService.updateStatus(orderId, newStatus);
+      toast.success('Sipariş durumu başarıyla güncellendi');
+      loadOrders();
+    } catch (error: any) {
+      console.error('Error updating order status:', error);
+      
+      // Daha detaylı hata mesajı
+      let errorMessage = 'Sipariş durumu güncellenirken hata oluştu';
+      if (error.response?.status === 500) {
+        errorMessage = 'Backend sunucu hatası. Lütfen daha sonra tekrar deneyin.';
+      } else if (error.response?.status === 403) {
+        errorMessage = 'Bu işlem için yetkiniz bulunmuyor.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Sipariş bulunamadı.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
+      toast.error(errorMessage);
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'pending':
-        return 'Bekliyor';
-      case 'in_progress':
-        return 'İşlemde';
-      case 'in_production':
-        return 'Üretimde';
-      case 'completed':
-        return 'Tamamlandı';
-      case 'cancelled':
-        return 'İptal Edildi';
-      default:
-        return status;
-    }
+  const getStatusColor = (status: OrderStatus) => {
+    return OrderStatusColors[status] || '#6b7280';
+  };
+
+  const getStatusText = (status: OrderStatus) => {
+    return OrderStatusLabels[status] || status;
   };
 
   // Statistics Cards Data
@@ -314,24 +317,31 @@ const Orders = () => {
       trend: '+8%'
     },
     {
-      title: 'İşlemde',
-      value: orders.filter(o => o.status === 'IN_PROGRESS').length,
-      icon: <TrendingUpIcon />,
-      color: '#8b5cf6',
-      trend: '+7%'
-    },
-    {
-      title: 'Üretimde',
-      value: orders.filter(o => o.status === 'IN_PRODUCTION').length,
+      title: 'Hazırlanıyor',
+      value: orders.filter(o => o.status === OrderStatus.IN_PRODUCTION).length,
       icon: <TrendingUpIcon />,
       color: '#3b82f6',
       trend: '+10%'
     },
     {
-      title: 'Tamamlanan',
-      value: orders.filter(o => o.status === 'COMPLETED').length,
+      title: 'Depoda',
+      value: orders.filter(o => o.status === OrderStatus.IN_WAREHOUSE).length,
       icon: <TrendingUpIcon />,
-      color: '#1e3a8a',
+      color: '#8b5cf6',
+      trend: '+7%'
+    },
+    {
+      title: 'Yolda',
+      value: orders.filter(o => o.status === OrderStatus.IN_TRANSIT).length,
+      icon: <TrendingUpIcon />,
+      color: '#f59e0b',
+      trend: '+12%'
+    },
+    {
+      title: 'Teslim Edildi',
+      value: orders.filter(o => o.status === OrderStatus.DELIVERED).length,
+      icon: <TrendingUpIcon />,
+      color: '#10b981',
       trend: '+15%'
     }
   ];
@@ -606,49 +616,53 @@ const Orders = () => {
                             <VisibilityIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                        {order.status?.toLowerCase() === 'in_production' && (
-                          <Tooltip title="Siparişi Tamamla">
-                            <IconButton 
-                              size="small"
-                              onClick={() => handleCompleteOrder(order.id)}
-                              disabled={completingOrder}
-                              sx={{ 
-                                color: '#10b981',
-                                '&:hover': { backgroundColor: '#f0fdf4', color: '#059669' }
-                              }}
-                            >
-                              {completingOrder ? (
-                                <CircularProgress size={16} sx={{ color: '#10b981' }} />
-                              ) : (
-                                <CheckCircleIcon fontSize="small" />
-                              )}
-                            </IconButton>
-                          </Tooltip>
+                        {userRole !== 'FACTORY_USER' && (
+                          <>
+                            {order.status === OrderStatus.IN_PRODUCTION && (
+                              <Tooltip title="Siparişi Tamamla">
+                                <IconButton 
+                                  size="small"
+                                  onClick={() => handleCompleteOrder(order.id)}
+                                  disabled={completingOrder}
+                                  sx={{ 
+                                    color: '#10b981',
+                                    '&:hover': { backgroundColor: '#f0fdf4', color: '#059669' }
+                                  }}
+                                >
+                                  {completingOrder ? (
+                                    <CircularProgress size={16} sx={{ color: '#10b981' }} />
+                                  ) : (
+                                    <CheckCircleIcon fontSize="small" />
+                                  )}
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            <Tooltip title="Fabrika Ata">
+                              <IconButton 
+                                size="small"
+                                onClick={() => handleAssignFactory(order)}
+                                sx={{ 
+                                  color: '#8b5cf6',
+                                  '&:hover': { backgroundColor: '#f3f4f6', color: '#7c3aed' }
+                                }}
+                              >
+                                <FactoryIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Sil">
+                              <IconButton 
+                                size="small"
+                                onClick={() => handleDelete(order.id.toString())}
+                                sx={{ 
+                                  color: '#ef4444',
+                                  '&:hover': { backgroundColor: '#fef2f2', color: '#dc2626' }
+                                }}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </>
                         )}
-                        <Tooltip title="Fabrika Ata">
-                          <IconButton 
-                            size="small"
-                            onClick={() => handleAssignFactory(order)}
-                            sx={{ 
-                              color: '#8b5cf6',
-                              '&:hover': { backgroundColor: '#f3f4f6', color: '#7c3aed' }
-                            }}
-                          >
-                            <FactoryIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Sil">
-                          <IconButton 
-                            size="small"
-                            onClick={() => handleDelete(order.id.toString())}
-                            sx={{ 
-                              color: '#ef4444',
-                              '&:hover': { backgroundColor: '#fef2f2', color: '#dc2626' }
-                            }}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
                       </Box>
                   </TableCell>
                 </TableRow>
@@ -894,20 +908,97 @@ const Orders = () => {
         }}>
           <Avatar 
             sx={{ 
-              backgroundColor: '#10b98120',
-              color: '#10b981',
+              backgroundColor: userRole === 'FACTORY_USER' ? '#8b5cf620' : '#10b98120',
+              color: userRole === 'FACTORY_USER' ? '#8b5cf6' : '#10b981',
               width: 40,
               height: 40,
               fontWeight: 600
             }}
           >
-            <ShoppingBagIcon />
+            {userRole === 'FACTORY_USER' ? <FactoryIcon /> : <ShoppingBagIcon />}
           </Avatar>
-          Sipariş Detayları
+          {userRole === 'FACTORY_USER' ? 'Üretim Takibi' : 'Sipariş Detayları'}
         </DialogTitle>
         <DialogContent sx={{ pt: 3 }}>
           {viewOrder && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {/* FACTORY_USER için özel progress bar */}
+              {userRole === 'FACTORY_USER' && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151', mb: 2 }}>
+                    Üretim Süreci
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                    {Object.values(OrderStatus).map((status, index) => (
+                      <React.Fragment key={status}>
+                        <Box sx={{ 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          alignItems: 'center',
+                          flex: 1
+                        }}>
+                          <Box sx={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: viewOrder.status === status 
+                              ? getStatusColor(status) 
+                              : Object.values(OrderStatus).indexOf(viewOrder.status) > index 
+                                ? getStatusColor(status) 
+                                : '#e5e7eb',
+                            color: viewOrder.status === status 
+                              ? 'white' 
+                              : Object.values(OrderStatus).indexOf(viewOrder.status) > index 
+                                ? 'white' 
+                                : '#9ca3af',
+                            fontWeight: 600,
+                            fontSize: '0.875rem',
+                            border: viewOrder.status === status ? `3px solid ${getStatusColor(status)}` : 'none'
+                          }}>
+                            {index + 1}
+                          </Box>
+                          <Typography variant="caption" sx={{ 
+                            mt: 0.5, 
+                            textAlign: 'center',
+                            color: viewOrder.status === status 
+                              ? getStatusColor(status) 
+                              : Object.values(OrderStatus).indexOf(viewOrder.status) > index 
+                                ? getStatusColor(status) 
+                                : '#9ca3af',
+                            fontWeight: 600,
+                            fontSize: '0.75rem'
+                          }}>
+                            {OrderStatusLabels[status]}
+                          </Typography>
+                        </Box>
+                        {index < Object.values(OrderStatus).length - 1 && (
+                          <Box sx={{
+                            flex: 1,
+                            height: 2,
+                            backgroundColor: Object.values(OrderStatus).indexOf(viewOrder.status) > index 
+                              ? getStatusColor(Object.values(OrderStatus)[index + 1]) 
+                              : '#e5e7eb',
+                            borderRadius: 1
+                          }} />
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </Box>
+                  <Typography variant="body2" sx={{ 
+                    color: '#6b7280', 
+                    textAlign: 'center',
+                    fontStyle: 'italic'
+                  }}>
+                    Mevcut Durum: <strong style={{ color: getStatusColor(viewOrder.status) }}>
+                      {OrderStatusLabels[viewOrder.status]}
+                    </strong>
+                  </Typography>
+                </Box>
+              )}
+              
               {/* Order Header */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, backgroundColor: '#f9fafb', borderRadius: 2 }}>
                 <Avatar 
@@ -940,9 +1031,11 @@ const Orders = () => {
                         borderRadius: 2
                       }} 
                     />
-                    <Typography variant="h6" sx={{ color: '#059669', fontWeight: 600 }}>
-                      ₺{viewOrder.totalPrice?.toFixed(2) || '0.00'}
-                    </Typography>
+                    {userRole !== 'FACTORY_USER' && (
+                      <Typography variant="h6" sx={{ color: '#059669', fontWeight: 600 }}>
+                        ₺{viewOrder.totalPrice?.toFixed(2) || '0.00'}
+                      </Typography>
+                    )}
                   </Box>
                 </Box>
               </Box>
@@ -979,12 +1072,14 @@ const Orders = () => {
                         {new Date(viewOrder.createdAt).toLocaleDateString('tr-TR')}
                       </Typography>
                     </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" sx={{ color: '#6b7280' }}>Toplam Fiyat:</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#059669' }}>
-                        ₺{viewOrder.totalPrice?.toFixed(2) || '0.00'}
-                      </Typography>
-                    </Box>
+                    {userRole !== 'FACTORY_USER' && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: '#6b7280' }}>Toplam Fiyat:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#059669' }}>
+                          ₺{viewOrder.totalPrice?.toFixed(2) || '0.00'}
+                        </Typography>
+                      </Box>
+                    )}
                   </Box>
                 </Box>
 
@@ -1058,9 +1153,11 @@ const Orders = () => {
                             <Typography variant="body2" sx={{ color: '#6b7280' }}>
                               Miktar: {item.quantity} adet
                             </Typography>
-                            <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                              Birim Fiyat: ₺{item.unitPrice?.toFixed(2) || '0.00'}
-                            </Typography>
+                            {userRole !== 'FACTORY_USER' && (
+                              <Typography variant="body2" sx={{ color: '#6b7280' }}>
+                                Birim Fiyat: ₺{item.unitPrice?.toFixed(2) || '0.00'}
+                              </Typography>
+                            )}
                           </Box>
                           {item.plannedDelivery && (
                             <Typography variant="body2" sx={{ color: '#8b5cf6', mt: 0.5 }}>
@@ -1069,9 +1166,11 @@ const Orders = () => {
                           )}
                         </Box>
                         <Box sx={{ textAlign: 'right' }}>
-                          <Typography variant="h6" sx={{ color: '#059669', fontWeight: 600 }}>
-                            ₺{item.lineTotal?.toFixed(2) || (item.quantity * (item.unitPrice || 0)).toFixed(2)}
-                          </Typography>
+                          {userRole !== 'FACTORY_USER' && (
+                            <Typography variant="h6" sx={{ color: '#059669', fontWeight: 600 }}>
+                              ₺{item.lineTotal?.toFixed(2) || (item.quantity * (item.unitPrice || 0)).toFixed(2)}
+                            </Typography>
+                          )}
                           {item.status && (
                             <Chip 
                               label={item.status} 
@@ -1115,96 +1214,233 @@ const Orders = () => {
           </Button>
           {viewOrder && (
             <>
-              {/* İptal Et butonu - sadece pending, in_progress, in_production durumlarında göster */}
-              {['pending', 'in_progress', 'in_production'].includes(viewOrder.status?.toLowerCase()) && (
+              {/* FACTORY_USER için özel durum güncelleme butonları */}
+              {userRole === 'FACTORY_USER' ? (
+                <>
+                  {/* PENDING -> IN_PRODUCTION */}
+                  {viewOrder.status === OrderStatus.PENDING && (
+                    <Button 
+                      onClick={() => {
+                        setViewOrderModalOpen(false);
+                        handleUpdateOrderStatus(viewOrder.id, OrderStatus.IN_PRODUCTION);
+                      }}
+                      variant="contained"
+                      startIcon={<PlayArrowIcon />}
+                      sx={{
+                        backgroundColor: '#3b82f6',
+                        fontWeight: 600,
+                        textTransform: 'none',
+                        px: 3,
+                        py: 1,
+                        borderRadius: 2,
+                        boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+                        '&:hover': {
+                          backgroundColor: '#2563eb',
+                          transform: 'translateY(-1px)',
+                          boxShadow: '0 6px 16px rgba(59, 130, 246, 0.4)',
+                        }
+                      }}
+                    >
+                      Üretime Başla
+                    </Button>
+                  )}
+                  
+                  {/* IN_PRODUCTION -> IN_WAREHOUSE */}
+                  {viewOrder.status === OrderStatus.IN_PRODUCTION && (
+                    <Button 
+                      onClick={() => {
+                        setViewOrderModalOpen(false);
+                        handleUpdateOrderStatus(viewOrder.id, OrderStatus.IN_WAREHOUSE);
+                      }}
+                      variant="contained"
+                      startIcon={<InventoryIcon />}
+                      sx={{
+                        backgroundColor: '#8b5cf6',
+                        fontWeight: 600,
+                        textTransform: 'none',
+                        px: 3,
+                        py: 1,
+                        borderRadius: 2,
+                        boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)',
+                        '&:hover': {
+                          backgroundColor: '#7c3aed',
+                          transform: 'translateY(-1px)',
+                          boxShadow: '0 6px 16px rgba(139, 92, 246, 0.4)',
+                        }
+                      }}
+                    >
+                      Depoya Taşı
+                    </Button>
+                  )}
+                  
+                  {/* IN_WAREHOUSE -> IN_TRANSIT */}
+                  {viewOrder.status === OrderStatus.IN_WAREHOUSE && (
+                    <Button 
+                      onClick={() => {
+                        setViewOrderModalOpen(false);
+                        handleUpdateOrderStatus(viewOrder.id, OrderStatus.IN_TRANSIT);
+                      }}
+                      variant="contained"
+                      startIcon={<LocalShippingIcon />}
+                      sx={{
+                        backgroundColor: '#f59e0b',
+                        fontWeight: 600,
+                        textTransform: 'none',
+                        px: 3,
+                        py: 1,
+                        borderRadius: 2,
+                        boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
+                        '&:hover': {
+                          backgroundColor: '#d97706',
+                          transform: 'translateY(-1px)',
+                          boxShadow: '0 6px 16px rgba(245, 158, 11, 0.4)',
+                        }
+                      }}
+                    >
+                      Yola Çıkar
+                    </Button>
+                  )}
+                  
+                  {/* IN_TRANSIT -> DELIVERED */}
+                  {viewOrder.status === OrderStatus.IN_TRANSIT && (
+                    <Button 
+                      onClick={() => {
+                        setViewOrderModalOpen(false);
+                        handleUpdateOrderStatus(viewOrder.id, OrderStatus.DELIVERED);
+                      }}
+                      variant="contained"
+                      startIcon={<CheckCircleIcon />}
+                      sx={{
+                        backgroundColor: '#10b981',
+                        fontWeight: 600,
+                        textTransform: 'none',
+                        px: 3,
+                        py: 1,
+                        borderRadius: 2,
+                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                        '&:hover': {
+                          backgroundColor: '#059669',
+                          transform: 'translateY(-1px)',
+                          boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)',
+                        }
+                      }}
+                    >
+                      Teslim Edildi
+                    </Button>
+                  )}
+                  
+                  {/* DELIVERED durumunda bilgi mesajı */}
+                  {viewOrder.status === OrderStatus.DELIVERED && (
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 1,
+                      color: '#10b981',
+                      fontWeight: 600,
+                      fontSize: '0.875rem'
+                    }}>
+                      <CheckCircleIcon />
+                      Sipariş Teslim Edildi
+                    </Box>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Diğer roller için normal butonlar */}
+                  {/* İptal Et butonu - sadece pending, in_progress, in_production durumlarında göster */}
+                  {['pending', 'in_progress', 'in_production'].includes(viewOrder.status?.toLowerCase()) && (
+                    <Button 
+                      onClick={() => {
+                        setViewOrderModalOpen(false);
+                        handleCancelOrder(viewOrder.id);
+                      }}
+                      variant="outlined"
+                      startIcon={<CancelIcon />}
+                      disabled={cancellingOrder}
+                      sx={{
+                        color: '#ef4444',
+                        borderColor: '#ef4444',
+                        fontWeight: 600,
+                        textTransform: 'none',
+                        px: 3,
+                        py: 1,
+                        borderRadius: 2,
+                        '&:hover': {
+                          backgroundColor: '#fef2f2',
+                          borderColor: '#dc2626',
+                          color: '#dc2626',
+                        },
+                        '&:disabled': {
+                          borderColor: '#d1d5db',
+                          color: '#9ca3af',
+                        }
+                      }}
+                    >
+                      {cancellingOrder ? 'İptal Ediliyor...' : 'İptal Et'}
+                    </Button>
+                  )}
+                  
+                  {/* Tamamlandı butonu - sadece in_production durumunda göster */}
+                  {viewOrder.status?.toLowerCase() === 'in_production' && (
+                    <Button 
+                      onClick={() => {
+                        setViewOrderModalOpen(false);
+                        handleCompleteOrder(viewOrder.id);
+                      }}
+                      variant="contained"
+                      startIcon={<CheckCircleIcon />}
+                      disabled={completingOrder}
+                      sx={{
+                        backgroundColor: '#10b981',
+                        fontWeight: 600,
+                        textTransform: 'none',
+                        px: 3,
+                        py: 1,
+                        borderRadius: 2,
+                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                        '&:hover': {
+                          backgroundColor: '#059669',
+                          transform: 'translateY(-1px)',
+                          boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)',
+                        },
+                        '&:disabled': {
+                          backgroundColor: '#d1d5db',
+                          color: '#9ca3af',
+                        }
+                      }}
+                    >
+                      {completingOrder ? 'Tamamlanıyor...' : 'Sipariş Tamamlandı'}
+                    </Button>
+                  )}
+                </>
+              )}
+              
+              {userRole !== 'FACTORY_USER' && (
                 <Button 
                   onClick={() => {
                     setViewOrderModalOpen(false);
-                    handleCancelOrder(viewOrder.id);
+                    handleAssignFactory(viewOrder);
                   }}
                   variant="outlined"
-                  startIcon={<CancelIcon />}
-                  disabled={cancellingOrder}
+                  startIcon={<FactoryIcon />}
                   sx={{
-                    color: '#ef4444',
-                    borderColor: '#ef4444',
+                    color: '#8b5cf6',
+                    borderColor: '#8b5cf6',
                     fontWeight: 600,
                     textTransform: 'none',
                     px: 3,
                     py: 1,
                     borderRadius: 2,
                     '&:hover': {
-                      backgroundColor: '#fef2f2',
-                      borderColor: '#dc2626',
-                      color: '#dc2626',
-                    },
-                    '&:disabled': {
-                      borderColor: '#d1d5db',
-                      color: '#9ca3af',
+                      backgroundColor: '#8b5cf620',
+                      borderColor: '#7c3aed',
+                      color: '#7c3aed',
                     }
                   }}
                 >
-                  {cancellingOrder ? 'İptal Ediliyor...' : 'İptal Et'}
+                  Fabrika Ata
                 </Button>
               )}
-              
-              {/* Tamamlandı butonu - sadece in_production durumunda göster */}
-              {viewOrder.status?.toLowerCase() === 'in_production' && (
-                <Button 
-                  onClick={() => {
-                    setViewOrderModalOpen(false);
-                    handleCompleteOrder(viewOrder.id);
-                  }}
-                  variant="contained"
-                  startIcon={<CheckCircleIcon />}
-                  disabled={completingOrder}
-                  sx={{
-                    backgroundColor: '#10b981',
-                    fontWeight: 600,
-                    textTransform: 'none',
-                    px: 3,
-                    py: 1,
-                    borderRadius: 2,
-                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                    '&:hover': {
-                      backgroundColor: '#059669',
-                      transform: 'translateY(-1px)',
-                      boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)',
-                    },
-                    '&:disabled': {
-                      backgroundColor: '#d1d5db',
-                      color: '#9ca3af',
-                    }
-                  }}
-                >
-                  {completingOrder ? 'Tamamlanıyor...' : 'Sipariş Tamamlandı'}
-                </Button>
-              )}
-              
-              <Button 
-                onClick={() => {
-                  setViewOrderModalOpen(false);
-                  handleAssignFactory(viewOrder);
-                }}
-                variant="outlined"
-                startIcon={<FactoryIcon />}
-                sx={{
-                  color: '#8b5cf6',
-                  borderColor: '#8b5cf6',
-                  fontWeight: 600,
-                  textTransform: 'none',
-                  px: 3,
-                  py: 1,
-                  borderRadius: 2,
-                  '&:hover': {
-                    backgroundColor: '#8b5cf620',
-                    borderColor: '#7c3aed',
-                    color: '#7c3aed',
-                  }
-                }}
-              >
-                Fabrika Ata
-              </Button>
             </>
           )}
         </DialogActions>
