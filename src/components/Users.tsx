@@ -40,11 +40,14 @@ import {
   Security as SecurityIcon,
 } from '@mui/icons-material';
 import { usersService } from '../services/users';
+import { authService } from '../services/auth';
 import { User, UserRole, UserRoleLabels } from '../types/user';
 import { ConfirmationDialog } from './ConfirmationDialog';
 import { toast } from 'react-toastify';
+import { useDealer } from '../contexts/DealerContext';
 
 const Users = () => {
+  const { selectedDealer } = useDealer();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -60,16 +63,33 @@ const Users = () => {
     email: '',
     phoneNumber: '',
     role: UserRole.DEALER_USER,
+    dealerId: undefined as number | undefined,
   });
 
   useEffect(() => {
+    console.log('Users component mounted, loading users...');
     loadUsers();
   }, []);
 
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const data = await usersService.getUsers();
+      const userRole = authService.getUserRole();
+      const userDealerId = authService.getUserDealerId();
+      
+      console.log('LoadUsers - Role:', userRole, 'DealerId:', userDealerId);
+      
+      let data;
+      
+      if (userRole === 'DEALER_ADMIN') {
+        // DEALER_ADMIN için özel endpoint kullan
+        console.log('Calling usersService.getUsers with dealerId:', userDealerId);
+        data = await usersService.getUsers(userDealerId);
+      } else {
+        // SUPER_ADMIN için tüm kullanıcıları getir
+        data = await usersService.getUsers();
+      }
+      
       setUsers(data);
       setError('');
     } catch (err) {
@@ -88,6 +108,7 @@ const Users = () => {
         email: user.email,
         phoneNumber: user.phoneNumber,
         role: user.role,
+        dealerId: user.dealerId,
       });
       setIsViewMode(viewMode);
     } else {
@@ -97,6 +118,7 @@ const Users = () => {
         email: '',
         phoneNumber: '',
         role: UserRole.DEALER_USER,
+        dealerId: undefined,
       });
       setIsViewMode(false);
     }
@@ -111,19 +133,63 @@ const Users = () => {
       email: '',
       phoneNumber: '',
       role: UserRole.DEALER_USER,
+      dealerId: undefined,
     });
     setIsViewMode(false);
   };
 
   const handleSubmit = async () => {
     try {
+      const userRole = authService.getUserRole();
+      const userDealerId = authService.getUserDealerId();
+      
       if (selectedUser) {
         // Update existing user
         await usersService.updateUser(selectedUser.id, formData);
         toast.success('Kullanıcı başarıyla güncellendi');
       } else {
         // Create new user
-        await usersService.createUser(formData);
+        const userData = { ...formData };
+        
+        // DEALER_ADMIN ise dealer ID'sini ekle
+        if (userRole === 'DEALER_ADMIN') {
+          // Telefon numarasını doğru formata çevir
+          const formatPhoneNumber = (phone: string) => {
+            // 056776544576 -> +90 567 765 44 76
+            if (phone.startsWith('0')) {
+              const cleaned = phone.substring(1); // 56776544576
+              return `+90 ${cleaned.substring(0, 3)} ${cleaned.substring(3, 6)} ${cleaned.substring(6, 8)} ${cleaned.substring(8, 10)}`;
+            }
+            return phone;
+          };
+          
+          const dealerUserData = {
+            name: userData.name,
+            email: userData.email,
+            phoneNumber: formatPhoneNumber(userData.phoneNumber),
+            dealerId: userDealerId,
+            role: 'DEALER_USER' // Dealer admin sadece DEALER_USER oluşturabilir
+          };
+          console.log('Creating dealer user with data:', dealerUserData);
+          await usersService.createUser(dealerUserData);
+        } else {
+          // SUPER_ADMIN için de telefon numarasını formatla ve dealerId set et
+          const formatPhoneNumber = (phone: string) => {
+            if (phone.startsWith('0')) {
+              const cleaned = phone.substring(1);
+              return `+90 ${cleaned.substring(0, 3)} ${cleaned.substring(3, 6)} ${cleaned.substring(6, 8)} ${cleaned.substring(8, 10)}`;
+            }
+            return phone;
+          };
+          
+          const superAdminUserData = {
+            ...userData,
+            phoneNumber: formatPhoneNumber(userData.phoneNumber),
+            dealerId: selectedDealer?.id || userDealerId // SUPER_ADMIN'in seçili dealer'ının ID'si
+          };
+          await usersService.createUser(superAdminUserData);
+        }
+        
         toast.success('Kullanıcı başarıyla oluşturuldu');
       }
       handleCloseModal();
@@ -192,10 +258,13 @@ const Users = () => {
       {/* Header */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="h4" sx={{ fontWeight: 700, color: '#1e293b', mb: 1 }}>
-          Kullanıcı Yönetimi
+          {authService.getUserRole() === 'DEALER_ADMIN' ? 'Bayi Kullanıcıları' : 'Kullanıcı Yönetimi'}
         </Typography>
         <Typography variant="body1" sx={{ color: '#64748b' }}>
-          Sistem kullanıcılarını yönetin, düzenleyin ve takip edin
+          {authService.getUserRole() === 'DEALER_ADMIN' 
+            ? 'Bayinize ait kullanıcıları yönetin ve düzenleyin'
+            : 'Sistem kullanıcılarını yönetin, düzenleyin ve takip edin'
+          }
         </Typography>
       </Box>
 
@@ -297,7 +366,7 @@ const Users = () => {
             },
           }}
         >
-          Yeni Kullanıcı
+          {authService.getUserRole() === 'DEALER_ADMIN' ? 'Yeni Bayi Kullanıcısı' : 'Yeni Kullanıcı'}
         </Button>
       </Box>
 
@@ -394,7 +463,12 @@ const Users = () => {
       {/* User Modal */}
       <Dialog open={isModalOpen} onClose={handleCloseModal} maxWidth="sm" fullWidth>
         <DialogTitle>
-          {isViewMode ? 'Kullanıcı Detayları' : selectedUser ? 'Kullanıcı Düzenle' : 'Yeni Kullanıcı'}
+          {isViewMode 
+            ? (authService.getUserRole() === 'DEALER_ADMIN' ? 'Bayi Kullanıcısı Detayları' : 'Kullanıcı Detayları')
+            : selectedUser 
+              ? (authService.getUserRole() === 'DEALER_ADMIN' ? 'Bayi Kullanıcısı Düzenle' : 'Kullanıcı Düzenle')
+              : (authService.getUserRole() === 'DEALER_ADMIN' ? 'Yeni Bayi Kullanıcısı' : 'Yeni Kullanıcı')
+          }
         </DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 2 }}>
@@ -428,11 +502,27 @@ const Users = () => {
                   label="Rol"
                   onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                 >
-                  {Object.entries(UserRoleLabels).map(([role, label]) => (
-                    <MenuItem key={role} value={role}>
-                      {label}
-                    </MenuItem>
-                  ))}
+                  {Object.entries(UserRoleLabels).map(([role, label]) => {
+                    const userRole = authService.getUserRole();
+                    
+                                        // DEALER_ADMIN sadece DEALER_USER oluşturabilir
+                    if (userRole === 'DEALER_ADMIN' && role !== 'DEALER_USER') {
+                      return null;
+                    }
+                    
+                    // SUPER_ADMIN bu ekranda sadece DEALER_USER oluşturabilir
+                    // DEALER_ADMIN bayiler oluşturulurken otomatik oluşturuluyor
+                    // FACTORY_USER fabrikalar oluşturulurken otomatik oluşturuluyor
+                    if (userRole === 'SUPER_ADMIN' && role !== 'DEALER_USER') {
+                      return null;
+                    }
+                    
+                    return (
+                      <MenuItem key={role} value={role}>
+                        {label}
+                      </MenuItem>
+                    );
+                  })}
                 </Select>
               </FormControl>
             </Box>

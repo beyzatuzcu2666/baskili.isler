@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Box, 
   Card,
@@ -54,11 +55,21 @@ import {
 } from '@mui/icons-material';
 import { Product, ProductCreateDto, ProductUpdateDto, Unit, getUnitDisplayName } from '../types/product';
 import { productsService } from '../services/products';
+import { authService } from '../services/auth';
+import { useDealer } from '../contexts/DealerContext';
 import { ConfirmationDialog } from './ConfirmationDialog';
 import { toast } from 'react-toastify';
 
 const Products = () => {
+  const { selectedDealer } = useDealer();
+  const [searchParams] = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
+  const [mostOrderedProduct, setMostOrderedProduct] = useState<{
+    productId: number;
+    productName: string;
+    orderCount: number;
+    totalRevenue: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
@@ -79,12 +90,44 @@ const Products = () => {
     description: '',
     unit: Unit.ADET,
     unitPrice: 0,
-    taxRate: 18.00
+    taxRate: 20.00
   });
 
   useEffect(() => {
     loadProducts();
-  }, []);
+    loadMostOrderedProduct();
+  }, [selectedDealer]);
+
+  // URL parametresi ile modal'ı otomatik aç
+  useEffect(() => {
+    const modalParam = searchParams.get('modal');
+    if (modalParam === 'add') {
+      handleOpenAddModal();
+      // URL'den modal parametresini temizle
+      window.history.replaceState({}, '', '/products');
+    }
+  }, [searchParams]);
+
+  const handleOpenAddModal = () => {
+    openCreateDialog();
+  };
+
+  const loadMostOrderedProduct = async () => {
+    try {
+      const userRole = authService.getUserRole();
+      let data;
+      
+      if (userRole === 'SUPER_ADMIN' && selectedDealer) {
+        data = await productsService.getMostOrderedProduct(selectedDealer.id);
+      } else {
+        data = await productsService.getMostOrderedProduct();
+      }
+      
+      setMostOrderedProduct(data);
+    } catch (err) {
+      console.error('Most ordered product load error:', err);
+    }
+  };
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -96,7 +139,23 @@ const Products = () => {
   const loadProducts = async () => {
     try {
       setLoading(true);
-      const data = await productsService.getAll();
+      const userRole = authService.getUserRole();
+      
+      console.log('Loading products for dealer:', selectedDealer?.id, selectedDealer?.name);
+      
+      let data;
+      if (userRole === 'DEALER_ADMIN') {
+        // DEALER_ADMIN için sadece kendi bayisinin ürünlerini getir
+        data = await productsService.getDealerProducts();
+      } else if (userRole === 'SUPER_ADMIN' && selectedDealer) {
+        // SUPER_ADMIN için seçili dealer'ın ürünlerini getir
+        data = await productsService.getDealerProducts(selectedDealer.id);
+      } else {
+        // SUPER_ADMIN için tüm ürünleri getir (dealer seçilmemişse)
+        data = await productsService.getAll();
+      }
+      
+      console.log('Loaded products:', data?.length, 'items');
       setProducts(data);
       setError(null);
     } catch (error) {
@@ -114,9 +173,22 @@ const Products = () => {
       return;
     }
 
+    // SUPER_ADMIN için dealer ID kontrolü
+    const userRole = authService.getUserRole();
+    if (userRole === 'SUPER_ADMIN' && !selectedDealer) {
+      toast.error('Lütfen önce bir bayi seçin');
+      return;
+    }
+
     setIsCreating(true);
     try {
-      const product = await productsService.create(formData);
+      // SUPER_ADMIN için dealer ID ekle
+      const createData = {
+        ...formData,
+        dealerId: userRole === 'SUPER_ADMIN' ? selectedDealer?.id : undefined
+      };
+
+      const product = await productsService.create(createData);
       setProducts([...products, product]);
       resetForm();
       setOpenDialog(false);
@@ -196,7 +268,7 @@ const Products = () => {
       description: '',
       unit: Unit.ADET,
       unitPrice: 0,
-      taxRate: 18.00
+      taxRate: 20.00
     });
     setSelectedProduct(null);
   };
@@ -236,6 +308,11 @@ const Products = () => {
     return active ? 'Aktif' : 'Pasif';
   };
 
+  // En çok sipariş alan ürün bilgisi
+  const getMostOrderedProductInfo = () => {
+    return mostOrderedProduct;
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
@@ -258,6 +335,7 @@ const Products = () => {
 
       {/* Stats Cards */}
       <Box sx={{ display: 'flex', gap: 3, mb: 3, flexWrap: 'wrap' }}>
+        {/* Toplam Ürün */}
         <Card sx={{ flex: '1 1 250px', background: 'linear-gradient(135deg, #3b82f615 0%, #3b82f608 100%)', border: '1px solid #3b82f620' }}>
           <CardContent sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -276,37 +354,86 @@ const Products = () => {
           </CardContent>
         </Card>
 
-        <Card sx={{ flex: '1 1 250px', background: 'linear-gradient(135deg, #10b98115 0%, #10b98108 100%)', border: '1px solid #10b98120' }}>
+        {/* En Yüksek Fiyatlı Ürün */}
+        <Card sx={{ flex: '1 1 250px', background: 'linear-gradient(135deg, #ef444415 0%, #ef444408 100%)', border: '1px solid #ef444420' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: '#ef4444', mb: 0.5 }}>
+                  ₺{products.length > 0 ? Math.max(...products.map(p => p.unitPrice)).toFixed(2) : '0.00'}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {products.length > 0 ? products.reduce((max, p) => p.unitPrice > max.unitPrice ? p : max).name : 'Ürün Yok'}
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                  En Yüksek Fiyatlı
+                </Typography>
+              </Box>
+              <Avatar sx={{ bgcolor: '#ef444420', color: '#ef4444', ml: 1 }}>
+                <TrendingUpIcon />
+              </Avatar>
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* Aktif Ürün Sayısı */}
+        <Card sx={{ flex: '1 1 250px', background: 'linear-gradient(135deg, #8b5cf615 0%, #8b5cf608 100%)', border: '1px solid #8b5cf620' }}>
           <CardContent sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: '#10b981' }}>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: '#8b5cf6' }}>
                   {products.filter(p => p.active).length}
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500 }}>
                   Aktif Ürün
                 </Typography>
               </Box>
-              <Avatar sx={{ bgcolor: '#10b98120', color: '#10b981' }}>
+              <Avatar sx={{ bgcolor: '#8b5cf620', color: '#8b5cf6' }}>
                 <CheckCircleIcon />
               </Avatar>
             </Box>
           </CardContent>
         </Card>
 
-        <Card sx={{ flex: '1 1 250px', background: 'linear-gradient(135deg, #f9731615 0%, #f9731608 100%)', border: '1px solid #f9731620' }}>
+        {/* En Düşük Fiyatlı Ürün */}
+        <Card sx={{ flex: '1 1 250px', background: 'linear-gradient(135deg, #10b98115 0%, #10b98108 100%)', border: '1px solid #10b98120' }}>
           <CardContent sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Box>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: '#f97316' }}>
-                  ₺{products.reduce((sum, p) => sum + p.unitPrice, 0).toFixed(2)}
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: '#10b981', mb: 0.5 }}>
+                  ₺{products.length > 0 ? Math.min(...products.map(p => p.unitPrice)).toFixed(2) : '0.00'}
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500 }}>
-                  Toplam Değer
+                <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {products.length > 0 ? products.reduce((min, p) => p.unitPrice < min.unitPrice ? p : min).name : 'Ürün Yok'}
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                  En Düşük Fiyatlı
                 </Typography>
               </Box>
-              <Avatar sx={{ bgcolor: '#f9731620', color: '#f97316' }}>
-                <TrendingUpIcon />
+              <Avatar sx={{ bgcolor: '#10b98120', color: '#10b981', ml: 1 }}>
+                <CheckCircleIcon />
+              </Avatar>
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* En Çok Sipariş Alan Ürün */}
+        <Card sx={{ flex: '1 1 250px', background: 'linear-gradient(135deg, #f59e0b15 0%, #f59e0b08 100%)', border: '1px solid #f59e0b20' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: '#f59e0b', mb: 0.5 }}>
+                  {getMostOrderedProductInfo()?.orderCount || 0}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {getMostOrderedProductInfo()?.productName || 'Ürün Yok'}
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                  En Çok Sipariş Alan
+                </Typography>
+              </Box>
+              <Avatar sx={{ bgcolor: '#f59e0b20', color: '#f59e0b', ml: 1 }}>
+                <CategoryIcon />
               </Avatar>
             </Box>
           </CardContent>

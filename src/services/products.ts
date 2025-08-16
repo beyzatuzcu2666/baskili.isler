@@ -10,6 +10,23 @@ export const productsService = {
   },
 
   /**
+   * Kullanıcının bayisinin ürünlerini getir
+   */
+  async getDealerProducts(dealerId?: number): Promise<Product[]> {
+    if (dealerId) {
+      return await http.get(`/dealer-data/products?dealerId=${dealerId}`);
+    }
+    return await http.get('/dealer-data/products');
+  },
+
+  /**
+   * Bayi bazında ürünleri getir
+   */
+  async getByDealer(dealerId: number): Promise<Product[]> {
+    return await http.get(`/products?dealerId=${dealerId}`);
+  },
+
+  /**
    * Sadece aktif ürünleri getir
    */
   async getActive(): Promise<Product[]> {
@@ -56,5 +73,26 @@ export const productsService = {
    */
   async deactivate(id: number): Promise<ProductResponseDto> {
     return await http.patch(`/products/${id}/deactivate`, {});
+  },
+
+  /**
+   * En çok sipariş alan ürünü getir
+   */
+  async getMostOrderedProduct(dealerId?: number): Promise<{
+    productId: number;
+    productName: string;
+    orderCount: number;
+    totalRevenue: number;
+  } | null> {
+    try {
+      let url = '/statistics/products/most-ordered';
+      if (dealerId) {
+        url += `?dealerId=${dealerId}`;
+      }
+      return await http.get(url);
+    } catch (error) {
+      console.error('Error fetching most ordered product:', error);
+      return null;
+    }
   }
 };

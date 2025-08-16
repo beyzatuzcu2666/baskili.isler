@@ -8,6 +8,21 @@ export const ordersService = {
     return await http.get(BASE_URL);
   },
 
+  getDealerOrders: async (dealerId?: number): Promise<Order[]> => {
+    if (dealerId) {
+      return await http.get(`/dealer-data/orders?dealerId=${dealerId}`);
+    }
+    return await http.get('/dealer-data/orders');
+  },
+
+  getFactoryOrders: async (): Promise<Order[]> => {
+    return await http.get(`${BASE_URL}/my-factory-orders`);
+  },
+
+  getByDealer: async (dealerId: number): Promise<Order[]> => {
+    return await http.get(`${BASE_URL}?dealerId=${dealerId}`);
+  },
+
   create: async (orderData: any): Promise<Order> => {
     return await http.post(BASE_URL, orderData);
   },
@@ -30,14 +45,16 @@ export const ordersService = {
     }
   },
 
-  assignFactory: async (orderId: string, factoryId: number, deadline: string): Promise<void> => {
+  assignFactory: async (orderId: string, factoryId: number, deadline: string, description?: string, imageUrls?: string[]): Promise<void> => {
     try {
       const payload = {
         factoryId: factoryId,
-        deadline: deadline
+        deadline: deadline,
+        ...(description && { description: description }),
+        ...(imageUrls && imageUrls.length > 0 && { imageUrls: imageUrls })
       };
       
-      // Curl örneğine göre: PATCH /orders/{orderId}/assign-factory
+      // PATCH /orders/{orderId}/assign-factory
       await http.patch(`${BASE_URL}/${orderId}/assign-factory`, payload);
     } catch (error: any) {
       console.error('Error assigning factory:', error);
@@ -55,27 +72,27 @@ export const ordersService = {
     }
   },
 
-  cancel: async (orderId: string): Promise<void> => {
-    try {
-      // PATCH /orders/{orderId}/cancel
-      await http.patch(`${BASE_URL}/${orderId}/cancel`, {});
-    } catch (error: any) {
-      console.error('Error cancelling order:', error);
-      throw error;
-    }
-  },
+
 
   // FACTORY_USER için sipariş durumu güncelleme
   updateStatus: async (orderId: number, newStatus: string): Promise<void> => {
     try {
-      // PATCH /orders/{orderId}/status
-      await http.patch(`${BASE_URL}/${orderId}/status`, { status: newStatus });
+      console.log('🚀 Sending order status update request:', {
+        url: `${BASE_URL}/${orderId}/factory-status`,
+        method: 'PATCH',
+        payload: { status: newStatus },
+        orderId,
+        newStatus
+      });
+      // PATCH /orders/{orderId}/factory-status
+      await http.patch(`${BASE_URL}/${orderId}/factory-status`, { status: newStatus });
+      console.log('✅ Order status updated successfully');
     } catch (error: any) {
-      console.error('Error updating order status:', error);
+      console.error('❌ Error updating order status:', error);
       console.error('Request details:', {
         orderId,
         newStatus,
-        url: `${BASE_URL}/${orderId}/status`,
+        url: `${BASE_URL}/${orderId}/factory-status`,
         payload: { status: newStatus }
       });
       if (error.response) {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -37,13 +38,16 @@ import {
   Add as AddIcon,
   LocalOffer as LocalOfferIcon,
   TrendingUp as TrendingUpIcon,
-  Schedule as ScheduleIcon,
+
   Visibility as VisibilityIcon,
   ShoppingCart as ShoppingCartIcon,
   Close as CloseIcon,
   Remove as RemoveIcon,
   Person as PersonIcon,
-  Inventory as InventoryIcon
+  Inventory as InventoryIcon,
+  Warning as WarningIcon,
+  BarChart as BarChartIcon,
+  AttachMoney as AttachMoneyIcon
 } from '@mui/icons-material';
 import { Offer } from '../types/offer';
 import { Brand } from '../types/brand';
@@ -56,9 +60,14 @@ import { ConfirmationDialog } from './ConfirmationDialog';
 import { BrandFormModal } from './BrandFormModal';
 import { toast } from 'react-toastify';
 import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { authService } from '../services/auth';
+import { useDealer } from '../contexts/DealerContext';
+import { getLogoBase64, getFallbackLogoBase64 } from '../utils/logoBase64';
 
 const Offers = () => {
+  const { selectedDealer } = useDealer();
+  const [searchParams] = useSearchParams();
   const [offers, setOffers] = useState<Offer[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -91,7 +100,7 @@ const Offers = () => {
     description: '',
     unit: Unit.ADET,
     unitPrice: 0,
-    taxRate: 18
+    taxRate: 20
   });
   
   const [editOffer, setEditOffer] = useState<{
@@ -113,11 +122,46 @@ const Offers = () => {
     loadOffers();
     loadBrands();
     loadProducts();
-  }, []);
+    loadStats();
+  }, [selectedDealer]);
+
+  // URL parametresi ile modal'ı otomatik aç
+  useEffect(() => {
+    const modalParam = searchParams.get('modal');
+    if (modalParam === 'add') {
+      handleOpenCreateModal();
+      // URL'den modal parametresini temizle
+      window.history.replaceState({}, '', '/offers');
+    }
+  }, [searchParams]);
+
+  const handleOpenCreateModal = () => {
+    setIsCreateModalOpen(true);
+    setNewOffer({
+      brandId: 0,
+      status: 'OFFER_SENT',
+      totalPrice: 0,
+      validUntil: '',
+      items: []
+    });
+  };
 
   const loadBrands = async () => {
     try {
-      const data = await brandsService.getBrands();
+      const userRole = authService.getUserRole();
+      
+      let data;
+      if (userRole === 'DEALER_ADMIN') {
+        // DEALER_ADMIN için sadece kendi bayisinin müşterilerini getir
+        data = await brandsService.getDealerBrands();
+      } else if (userRole === 'SUPER_ADMIN' && selectedDealer) {
+        // SUPER_ADMIN için seçili dealer'ın müşterilerini getir
+        data = await brandsService.getDealerBrands(selectedDealer.id);
+      } else {
+        // SUPER_ADMIN için tüm müşterileri getir (dealer seçilmemişse)
+        data = await brandsService.getBrands();
+      }
+      
       setBrands(data);
     } catch (error) {
       console.error('Error loading brands:', error);
@@ -126,12 +170,25 @@ const Offers = () => {
 
   const loadProducts = async () => {
     try {
-      const data = await productsService.getAll();
+      const userRole = authService.getUserRole();
+      
+      let data;
+      if (userRole === 'DEALER_ADMIN') {
+        // DEALER_ADMIN için sadece kendi bayisinin ürünlerini getir
+        data = await productsService.getDealerProducts();
+      } else if (userRole === 'SUPER_ADMIN' && selectedDealer) {
+        // SUPER_ADMIN için seçili dealer'ın ürünlerini getir
+        data = await productsService.getDealerProducts(selectedDealer.id);
+      } else {
+        // SUPER_ADMIN için tüm ürünleri getir (dealer seçilmemişse)
+        data = await productsService.getAll();
+      }
+      
       setProducts(data);
     } catch (error) {
       console.error('Error loading products:', error);
     }
-      };
+  };
 
   const filteredOffers = offers.filter(offer => {
     const matchesSearch = offer.brandName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -143,9 +200,9 @@ const Offers = () => {
     } else if (statusFilter === 'OFFER_SENT') {
       matchesStatus = offer.status === 'OFFER_SENT';
     } else if (statusFilter === 'OFFER_ACCEPTED') {
-      matchesStatus = offer.status === 'OFFER_ACCEPTED' || offer.status === 'ACCEPTED';
+      matchesStatus = offer.status === 'ACCEPTED';
     } else if (statusFilter === 'OFFER_REJECTED') {
-      matchesStatus = offer.status === 'OFFER_REJECTED' || offer.status === 'REJECTED';
+      matchesStatus = offer.status === 'DECLINED' || offer.status === 'EXPIRED';
     }
     
 
@@ -155,7 +212,24 @@ const Offers = () => {
 
   const loadOffers = async () => {
     try {
-      const data = await offersService.getAll();
+      const userRole = authService.getUserRole();
+      console.log('Loading offers - User role:', userRole, 'Selected dealer:', selectedDealer);
+      
+      let data;
+      if (userRole === 'DEALER_ADMIN') {
+        // DEALER_ADMIN için sadece kendi bayisinin tekliflerini getir
+        data = await offersService.getDealerOffers();
+      } else if (userRole === 'SUPER_ADMIN' && selectedDealer) {
+        // SUPER_ADMIN için seçili dealer'ın tekliflerini getir
+        data = await offersService.getDealerOffers(selectedDealer.id);
+      } else {
+        // SUPER_ADMIN için tüm teklifleri getir (dealer seçilmemişse)
+        data = await offersService.getAll();
+      }
+      
+      console.log('Loaded offers:', data);
+      console.log('User role:', authService.getUserRole());
+      console.log('Can convert offers:', authService.canConvertOfferToOrder());
       setOffers(data);
       setError(null);
     } catch (error) {
@@ -176,6 +250,7 @@ const Offers = () => {
     name: string;
     contactEmail: string;
     contactPhone: string;
+    assignedUserId?: number;
   }) => {
     setIsCreatingBrand(true);
     try {
@@ -203,7 +278,7 @@ const Offers = () => {
         description: '',
         unit: Unit.ADET,
         unitPrice: 0,
-        taxRate: 18
+        taxRate: 20
       });
       toast.success('Ürün başarıyla oluşturuldu');
     } catch (error) {
@@ -223,7 +298,7 @@ const Offers = () => {
       validUntil: offer.validUntil,
       items: offer.items.map(item => ({
         ...item,
-        taxRate: item.taxRate || 18 // Eğer taxRate yoksa varsayılan 18 kullan
+        taxRate: item.taxRate || 20 // Eğer taxRate yoksa varsayılan 20 kullan
       }))
     });
     setIsEditModalOpen(true);
@@ -258,7 +333,15 @@ const Offers = () => {
   const handleCreate = async (newOfferData: Omit<Offer, 'id' | 'createdAt'>) => {
     setIsCreating(true);
     try {
-      await offersService.create(newOfferData);
+      const userRole = authService.getUserRole();
+      
+      // Dealer ID'sini ekle
+      const offerData = {
+        ...newOfferData,
+        dealerId: userRole === 'SUPER_ADMIN' && selectedDealer ? selectedDealer.id : undefined
+      };
+      
+      await offersService.create(offerData);
       await loadOffers(); // Reload offers
       setIsCreateModalOpen(false);
       setError(null);
@@ -271,7 +354,7 @@ const Offers = () => {
   };
 
   const addItem = () => {
-    const updatedItems = [...newOffer.items, { productId: 0, quantity: 1, unitPrice: 0, taxRate: 18 }];
+    const updatedItems = [...newOffer.items, { productId: 0, quantity: 1, unitPrice: 0, taxRate: 20 }];
     const newTotalPrice = updatedItems.reduce((total, item) => {
       const lineTotal = item.quantity * item.unitPrice;
       const taxAmount = lineTotal * (item.taxRate / 100);
@@ -328,7 +411,7 @@ const Offers = () => {
 
   const addEditItem = () => {
     if (!editOffer) return;
-    const updatedItems = [...editOffer.items, { productId: 0, quantity: 1, unitPrice: 0, taxRate: 18 }];
+    const updatedItems = [...editOffer.items, { productId: 0, quantity: 1, unitPrice: 0, taxRate: 20 }];
     const newTotalPrice = updatedItems.reduce((total, item) => {
       const lineTotal = item.quantity * item.unitPrice;
       const taxAmount = lineTotal * (item.taxRate / 100);
@@ -450,11 +533,10 @@ const Offers = () => {
     switch (status?.toLowerCase()) {
       case 'offer_sent':
         return '#f97316';
-      case 'offer_accepted':
       case 'accepted':
         return '#10b981';
-      case 'offer_rejected':
-      case 'rejected':
+      case 'declined':
+      case 'expired':
         return '#ef4444';
       default:
         return '#6b7280';
@@ -465,12 +547,12 @@ const Offers = () => {
     switch (status?.toLowerCase()) {
       case 'offer_sent':
         return 'Gönderildi';
-      case 'offer_accepted':
       case 'accepted':
         return 'Kabul Edildi';
-      case 'offer_rejected':
-      case 'rejected':
+      case 'declined':
         return 'Reddedildi';
+      case 'expired':
+        return 'Süresi Doldu';
       default:
         return status;
     }
@@ -486,82 +568,158 @@ const Offers = () => {
     }
   };
 
-  const generatePDF = (offer: Offer) => {
+  const generatePDF = async (offer: Offer) => {
     const doc = new jsPDF();
     
-    // Türkçe karakterler için font ayarları
+    // Türkçe karakterler için özel font ayarları
     doc.setFont('helvetica');
-    doc.setLanguage('tr');
+    doc.setCharSpace(0.1);
     
-
+    // Türkçe karakter dönüştürme fonksiyonu
+    const turkishToLatin = (text: string) => {
+      return text
+        .replace(/ç/g, 'c').replace(/Ç/g, 'C')
+        .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')  
+        .replace(/ı/g, 'i').replace(/I/g, 'I')
+        .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+        .replace(/ş/g, 's').replace(/Ş/g, 'S')
+        .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+        .replace(/İ/g, 'I');
+    };
     
-
+    // Logo yükleme
+    let logoBase64 = getFallbackLogoBase64();
+    try {
+      logoBase64 = await getLogoBase64();
+    } catch (error) {
+      console.warn('Logo yüklenemedi, fallback logo kullanılıyor:', error);
+    }
     
-    // Logo ve şirket bilgileri (sol üst)
-    // Mavi logo yazısı kaldırıldı
+    // Sayfa başlığı ve arka plan rengi
+    doc.setFillColor(248, 250, 252); // Açık gri arka plan
+    doc.rect(0, 0, 210, 297, 'F');
     
-    doc.setFontSize(10);
-    doc.setTextColor(31, 41, 55);
-    doc.text('www.baskiliisler.com', 20, 40);
-    doc.text('Ornek Mah. Baku Sok. No:38/1B Atasehir / Istanbul', 20, 45);
+    // Üst header alanı
+    doc.setFillColor(16, 185, 129); // Yeşil header
+    doc.rect(0, 0, 210, 50, 'F');
     
-    // Başlık (sağ üst)
-    doc.setFontSize(18);
+    // Logo alanı (sol üst) - daha büyük ve görünür
+    try {
+      if (logoBase64.includes('svg')) {
+        // SVG logo için - daha büyük boyut
+        doc.addImage(logoBase64, 'SVG', 10, 8, 60, 35);
+      } else {
+        // PNG logo için
+        doc.addImage(logoBase64, 'PNG', 10, 8, 60, 35);
+      }
+    } catch (e) {
+      // Logo yüklenemezse renkli metin logo
+      doc.setFontSize(20);
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.text('BASKILI ISLER', 15, 30);
+    }
+    
+    // Şirket bilgileri (beyaz metin) - logo ile çakışmayacak konumda
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'normal');
+    doc.text('www.baskiliisler.com', 75, 18);
+    doc.text(turkishToLatin('Ornek Mah. Baku Sok. No:38/1B'), 75, 24);
+    doc.text(turkishToLatin('Atasehir / Istanbul'), 75, 30);
+    doc.text('Tel: +90 (212) 123 45 67', 75, 36);
+    
+    // Başlık (sağ üst - beyaz metin)
+    doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(31, 41, 55);
-    doc.text('TEKLIF FORMU', 105, 30, { align: 'center' });
+    doc.setTextColor(255, 255, 255);
+    doc.text(turkishToLatin('TEKLIF FORMU'), 140, 25);
     
-    // Tarih bilgileri (sağ üst)
-    doc.setFontSize(10);
+    // Tarih bilgileri (sağ üst - beyaz metin)
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     const currentDate = new Date().toLocaleDateString('tr-TR');
     const validUntil = new Date(offer.validUntil).toLocaleDateString('tr-TR');
-    doc.text(`Tarih: ${currentDate}`, 150, 40);
-    doc.text(`Gecerlilik: ${validUntil}`, 150, 45);
+    doc.text(`Tarih: ${currentDate}`, 140, 35);
+    doc.text(turkishToLatin(`Gecerlilik: ${validUntil}`), 140, 42);
     
-    // Müşteri bilgisi (dinamik)
-    doc.setFontSize(12);
+    // Müşteri bilgisi kartı
+    const customerName = offer.brandName || turkishToLatin('Bilinmeyen Müşteri');
+    
+    // Müşteri kartı arka planı
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(15, 60, 180, 25, 3, 3, 'F');
+    doc.setDrawColor(16, 185, 129);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(15, 60, 180, 25, 3, 3, 'S');
+    
+    // Müşteri bilgisi
+    doc.setFontSize(11);
+    doc.setTextColor(107, 114, 128);
+    doc.text('SAYIN', 20, 70);
+    doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    const customerName = offer.brandName || 'Bilinmeyen Müşteri';
-    doc.text(customerName, 20, 70);
+    doc.setTextColor(31, 41, 55);
+    doc.text(turkishToLatin(customerName), 20, 78);
+    
+    // Sağ tarafta sadece şirket adı
+    doc.setFontSize(14);
+    doc.setTextColor(16, 185, 129);
+    doc.setFont('helvetica', 'bold');
+    doc.text(turkishToLatin('BASKILI İŞLER'), 150, 75);
     
 
-    
-    // Basit tablo oluşturma (autoTable olmadan)
-    let currentY = 80;
-    
-    // Tablo başlıkları
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Aciklama', 20, currentY);
-    doc.text('Miktar', 100, currentY);
-    doc.text('Fiyat', 130, currentY);
-    doc.text('KDV (%)', 160, currentY);
-    doc.text('Tutar', 180, currentY);
-    
-    currentY += 10;
-    
-    // Tablo verileri
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    offer.items.forEach((item, index) => {
+    // Modern tablo oluşturma (autoTable ile)
+    const tableData = offer.items.map((item, index) => {
       const product = products.find(p => p.id === item.productId);
       const lineTotal = item.quantity * item.unitPrice;
+      const taxAmount = lineTotal * (item.taxRate / 100);
+      const totalWithTax = lineTotal + taxAmount;
       
-      // Debug: Ürün adını kontrol et
-      console.log('Product ID:', item.productId);
-      console.log('Found Product:', product);
-      console.log('Product Name:', product?.name);
-      
-      const productName = product?.name || 'Bilinmeyen Ürün';
-      doc.text(`${index + 1}. ${productName}`, 20, currentY);
-      doc.text(`${item.quantity} ${product?.unit || 'ad'}`, 100, currentY);
-      doc.text(`${item.unitPrice.toFixed(2)} TL`, 130, currentY);
-      doc.text(`%${item.taxRate}`, 160, currentY);
-      doc.text(`${lineTotal.toFixed(2)} TL`, 180, currentY);
-      
-      currentY += 8;
+      return [
+        `${index + 1}. ${turkishToLatin(product?.name || 'Bilinmeyen Ürün')}`,
+        `${item.quantity} ${turkishToLatin(product?.unit || 'adet')}`,
+        `${item.unitPrice.toFixed(2)} TL`,
+        `%${item.taxRate}`,
+        `${lineTotal.toFixed(2)} TL`,
+        `${totalWithTax.toFixed(2)} TL`
+      ];
     });
+
+    // autoTable ile modern tablo
+    autoTable(doc, {
+      startY: 95,
+      head: [[turkishToLatin('Açıklama'), 'Miktar', 'Birim Fiyat', 'KDV', 'Net Tutar', 'Toplam']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [16, 185, 129],
+        textColor: [255, 255, 255],
+        fontSize: 10,
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      bodyStyles: {
+        fontSize: 9,
+        cellPadding: 4,
+        lineColor: [229, 231, 235],
+        lineWidth: 0.1
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251]
+      },
+      columnStyles: {
+        0: { cellWidth: 60, halign: 'left' },   // Açıklama
+        1: { cellWidth: 25, halign: 'center' }, // Miktar
+        2: { cellWidth: 25, halign: 'right' },  // Birim Fiyat
+        3: { cellWidth: 20, halign: 'center' }, // KDV
+        4: { cellWidth: 25, halign: 'right' },  // Net Tutar
+        5: { cellWidth: 30, halign: 'right' }   // Toplam
+      },
+      margin: { left: 15, right: 15 }
+    });
+    
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
     
     // Toplam hesaplamaları
     const netTotal = offer.items.reduce((total, item) => total + (item.quantity * item.unitPrice), 0);
@@ -571,73 +729,183 @@ const Offers = () => {
     }, 0);
     const grandTotal = netTotal + taxTotal;
     
-    const finalY = currentY + 10;
+    // Toplam kutusu - daha geniş ve düzenli
+    doc.setFillColor(240, 253, 244); // Açık yeşil arka plan
+    doc.roundedRect(100, finalY, 95, 40, 3, 3, 'F');
+    doc.setDrawColor(16, 185, 129);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(100, finalY, 95, 40, 3, 3, 'S');
     
-    // Toplam bilgileri (sağ taraf)
+    // Toplam bilgileri - daha düzenli spacing
+    doc.setFontSize(10);
+    doc.setTextColor(5, 150, 105);
+    doc.setFont('helvetica', 'normal');
+    
+    // Net Toplam
+    doc.text('Net Toplam:', 105, finalY + 10);
+    doc.text(`${netTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL`, 190, finalY + 10, { align: 'right' });
+    
+    // KDV
+    doc.text(`KDV (${getTaxRateDisplay(offer.items)}):`, 105, finalY + 18);
+    doc.text(`${taxTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL`, 190, finalY + 18, { align: 'right' });
+    
+    // Ayırıcı çizgi
+    doc.setDrawColor(16, 185, 129);
+    doc.line(105, finalY + 22, 190, finalY + 22);
+    
+    // Genel toplam (kalın ve büyük)
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('GENEL TOPLAM:', 105, finalY + 30);
+    doc.text(`${grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL`, 190, finalY + 30, { align: 'right' });
+    
+    // Şartlar ve koşullar kutusu
+    const termsY = finalY + 50;
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(15, termsY, 180, 60, 3, 3, 'F');
+    doc.setDrawColor(229, 231, 235);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(15, termsY, 180, 60, 3, 3, 'S');
+    
+    // Başlık
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(31, 41, 55);
+    doc.text(turkishToLatin('ŞARTLAR VE KOŞULLAR'), 20, termsY + 10);
+    
+    // Şartlar listesi
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(107, 114, 128);
+    doc.text(turkishToLatin('• Teslimat grafik onayından sonra 14 iş günüdür.'), 20, termsY + 18);
+    doc.text(turkishToLatin('• Karton bardak çeşitlerinde klişe bedeli yoktur.'), 20, termsY + 24);
+    doc.text(turkishToLatin('• Islak mendil, peçete, şeker, soğuk bardakların klişe bedeli renk başı 1.000 TL.'), 20, termsY + 30);
+    doc.text(turkishToLatin('• Çanta, yağlı kağıt, kese kağıtları çeşitlerinde klişe bedeli ölçüye göre değişir.'), 20, termsY + 36);
+    doc.text(turkishToLatin('• Tüm ürünlerimiz gıda kullanımına uygundur, halk sağlığı izinleri mevcuttur.'), 20, termsY + 42);
+    
+    // Banka bilgileri kutusu
+    const bankY = termsY + 70;
+    doc.setFillColor(16, 185, 129);
+    doc.roundedRect(15, bankY, 180, 30, 3, 3, 'F');
+    
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Net ${netTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`, 150, finalY);
-    doc.text(`KDV (${getTaxRateDisplay(offer.items)}) ${taxTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`, 150, finalY + 5);
-    doc.text(`Toplam ${grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`, 150, finalY + 10);
+    doc.setTextColor(255, 255, 255);
+    doc.text(turkishToLatin('HESAP BİLGİLERİMİZ'), 20, bankY + 10);
     
-    // Şartlar ve koşullar
-    const termsY = finalY + 25;
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text('TESLIMAT GRAFIK ONAYINDAN SONRA 14 IS GUNUDUR.', 20, termsY);
-    doc.text('KARTON BARDAK CESITLERINDE KLISE BEDELI YOKTUR.', 20, termsY + 5);
-    doc.text('ISLAK MENDIL- PECETE- SEKER- SOGUK BARDAKLARIN KLISE BEDELI RENK BASI 1.000 TL.', 20, termsY + 10);
-    doc.text('CANTA, YAGLI KAGIT, KESE KAGITLARI VE CESITLERINDE KLISE BEDELI OLÇUYE GORE DEGISIKLIK GOSTEREBILIR.', 20, termsY + 15);
-    doc.text('TUM URUNLERIMIZ GIDA KULLANIMINA UYGUNDUR HALK SAGLIGI IZINLERI MEVCUTTUR.IHRACAT ICIN UYGUNDUR', 20, termsY + 20);
-    
-    // Banka bilgileri
-    const bankY = termsY + 35;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('HESAP BILGILERIMIZ:', 20, bankY);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text('AKBANK -- TR 22 0004 6002 9788 8000 1389 30', 20, bankY + 5);
-    doc.text('BASKILI ISLER', 20, bankY + 10);
+    doc.text('AKBANK - TR 22 0004 6002 9788 8000 1389 30', 20, bankY + 18);
+    doc.text(turkishToLatin('BASKILI İŞLER A.Ş.'), 20, bankY + 24);
     
     // Kapanış mesajı
-    const closingY = bankY + 20;
+    const closingY = bankY + 40;
     doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(107, 114, 128);
+    doc.text(turkishToLatin('Teklifimiz ile ilgili sorularınızı cevaplamaya hazır olduğumuzu belirtir,'), 20, closingY);
+    doc.text(turkishToLatin('çalışmalarınızda başarılar dileriz.'), 20, closingY + 6);
     doc.setFont('helvetica', 'bold');
-    doc.text('TEKLIFIMIZ ILE ILGILI SORULARINIZI CEVAPLAMAYA HAZIR OLDUGUMUZU BELIRTIR, CALISMALARINIZDA BASARILAR DILERIZ.', 20, closingY);
-    doc.text('Saygilarimizla,', 20, closingY + 5);
+    doc.text(turkishToLatin('Saygılarımızla, BASKILI İŞLER Ekibi'), 20, closingY + 15);
     
-    // PDF'i indir
-    const fileName = `Teklif_${customerName.replace(/\s+/g, '_').replace(/[çğıöşüÇĞIİÖŞÜ]/g, '')}_${offer.id}_${currentDate.replace(/\./g, '-')}.pdf`;
+    // PDF'i indir - Türkçe karakterleri koruyarak
+    const cleanCustomerName = turkishToLatin(customerName).replace(/\s+/g, '_');
+    
+    const fileName = `Teklif_${cleanCustomerName}_${offer.id}_${currentDate.replace(/\./g, '-')}.pdf`;
     doc.save(fileName);
     
-    toast.success('PDF basariyla olusturuldu ve indirildi!');
+    toast.success(turkishToLatin('PDF başarıyla oluşturuldu ve indirildi! 🎉'));
   };
 
   // Statistics Cards Data
-  const statsData = [
+  const [statsData, setStatsData] = useState([
     {
-      title: 'Filtrelenmiş Teklif',
-      value: filteredOffers.length,
-      icon: <LocalOfferIcon />,
-      color: '#10b981',
-      trend: `${filteredOffers.length}/${offers.length}`
+      title: 'Geçerlilik Süresi Yaklaşan',
+      value: 0,
+      icon: <WarningIcon />,
+      color: '#ef4444',
+      trend: '0 teklif'
     },
     {
-      title: 'Bekleyen Teklifler',
-      value: offers.filter(o => o.status === 'OFFER_SENT').length,
-      icon: <ScheduleIcon />,
-      color: '#f97316',
-      trend: '+5%'
-    },
-    {
-      title: 'Kabul Edilen',
-      value: offers.filter(o => o.status === 'OFFER_ACCEPTED').length,
+      title: 'Bu Hafta Kabul Edilen',
+      value: 0,
       icon: <TrendingUpIcon />,
+      color: '#10b981',
+      trend: '0 gönderilen'
+    },
+    {
+      title: 'Kabul Oranı',
+      value: '0%',
+      icon: <BarChartIcon />,
       color: '#1e3a8a',
-      trend: '+22%'
+      trend: '0 işlenen'
+    },
+    {
+      title: 'Toplam Teklif Değeri',
+      value: '0 ₺',
+      icon: <AttachMoneyIcon />,
+      color: '#f59e0b',
+      trend: '0 teklif'
     }
-  ];
+  ]);
+
+  // İstatistikleri yükle
+  const loadStats = async () => {
+    try {
+      const userRole = authService.getUserRole();
+      let dealerId = undefined;
+      
+      if (userRole === 'SUPER_ADMIN' && selectedDealer) {
+        dealerId = selectedDealer.id;
+      }
+
+      console.log('Loading stats - User role:', userRole, 'Dealer ID:', dealerId);
+
+      const [expiringData, weeklyData, overviewData] = await Promise.all([
+        offersService.getExpiringOffers(dealerId),
+        offersService.getWeeklyStats(dealerId),
+        offersService.getOffersOverview(dealerId)
+      ]);
+
+      console.log('Backend responses:');
+      console.log('Expiring data:', expiringData);
+      console.log('Weekly data:', weeklyData);
+      console.log('Overview data:', overviewData);
+
+      setStatsData([
+        {
+          title: 'Geçerlilik Süresi Yaklaşan',
+          value: expiringData.expiringCount,
+          icon: <WarningIcon />,
+          color: '#ef4444',
+          trend: `${expiringData.expiringCount} teklif`
+        },
+        {
+          title: 'Bu Hafta Kabul Edilen',
+          value: weeklyData.acceptedCount,
+          icon: <TrendingUpIcon />,
+          color: '#10b981',
+          trend: `${weeklyData.sentCount} gönderilen`
+        },
+        {
+          title: 'Kabul Oranı',
+          value: `${Math.round(overviewData.acceptanceRate)}%`,
+          icon: <BarChartIcon />,
+          color: '#1e3a8a',
+          trend: `${overviewData.acceptedOffers + overviewData.rejectedOffers} işlenen`
+        },
+        {
+          title: 'Toplam Teklif Değeri',
+          value: `${overviewData.totalValue.toLocaleString('tr-TR')} ₺`,
+          icon: <AttachMoneyIcon />,
+          color: '#f59e0b',
+          trend: `${overviewData.totalOffers} teklif`
+        }
+      ]);
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
+  };
 
   if (loading) {
   return (
@@ -676,9 +944,10 @@ const Offers = () => {
         gridTemplateColumns: { 
           xs: '1fr', 
           sm: 'repeat(2, 1fr)', 
-          lg: 'repeat(3, 1fr)' 
+          md: 'repeat(4, 1fr)', 
+          lg: 'repeat(4, 1fr)' 
         },
-        gap: 3, 
+        gap: 2, 
         mb: 4 
       }}>
         {statsData.map((stat, index) => (
@@ -696,13 +965,13 @@ const Offers = () => {
                 transition: 'all 0.2s ease-in-out'
               }}
             >
-              <CardContent sx={{ p: 3 }}>
+              <CardContent sx={{ p: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Box>
-                    <Typography variant="body2" sx={{ color: '#6b7280', mb: 1 }}>
+                    <Typography variant="body2" sx={{ color: '#6b7280', mb: 0.5, fontSize: '0.875rem' }}>
                       {stat.title}
                     </Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 700, color: '#1f2937', mb: 1 }}>
+                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#1f2937', mb: 0.5 }}>
                       {stat.value}
                     </Typography>
                     <Chip 
@@ -712,7 +981,7 @@ const Offers = () => {
                         backgroundColor: `${stat.color}20`,
                         color: stat.color,
                         fontWeight: 600,
-                        fontSize: '0.75rem'
+                        fontSize: '0.7rem'
                       }} 
                     />
                   </Box>
@@ -720,8 +989,8 @@ const Offers = () => {
                     sx={{ 
                       backgroundColor: `${stat.color}20`,
                       color: stat.color,
-                      width: 56,
-                      height: 56
+                      width: 40,
+                      height: 40
                     }}
                   >
                     {stat.icon}
@@ -790,8 +1059,9 @@ const Offers = () => {
                 >
                   <MenuItem value="all">Tüm Durumlar</MenuItem>
                   <MenuItem value="OFFER_SENT">Gönderildi</MenuItem>
-                  <MenuItem value="OFFER_ACCEPTED">Kabul Edildi</MenuItem>
-                  <MenuItem value="OFFER_REJECTED">Reddedildi</MenuItem>
+                                  <MenuItem value="ACCEPTED">Kabul Edildi</MenuItem>
+                <MenuItem value="DECLINED">Reddedildi</MenuItem>
+                <MenuItem value="EXPIRED">Süresi Doldu</MenuItem>
                 </Select>
               </FormControl>
             </Box>
@@ -877,6 +1147,7 @@ const Offers = () => {
                     <TableCell sx={{ py: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Avatar 
+                          src={brands.find(brand => brand.name === offer.brandName)?.logoUrl}
                           sx={{ 
                             backgroundColor: '#10b98120',
                             color: '#10b981',
@@ -943,7 +1214,7 @@ const Offers = () => {
                           </IconButton>
                         </Tooltip>
                         {offer.status === 'OFFER_SENT' && authService.canConvertOfferToOrder() && (
-                          <Tooltip title="Siparişe Çevir">
+                          <Tooltip title="Siparişe Dönüştür">
                             <IconButton 
                               size="small"
                               onClick={() => handleConvertToOrder(offer)}
@@ -956,18 +1227,20 @@ const Offers = () => {
                             </IconButton>
                           </Tooltip>
                         )}
-                        <Tooltip title="Düzenle">
-                          <IconButton 
-                            size="small"
-                            onClick={() => handleEdit(offer)}
-                            sx={{ 
-                              color: '#f97316',
-                              '&:hover': { backgroundColor: '#fef3e2', color: '#ea580c' }
-                            }}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {offer.status === 'OFFER_SENT' && (
+                          <Tooltip title="Düzenle">
+                            <IconButton 
+                              size="small"
+                              onClick={() => handleEdit(offer)}
+                              sx={{ 
+                                color: '#f97316',
+                                '&:hover': { backgroundColor: '#fef3e2', color: '#ea580c' }
+                              }}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                         <Tooltip title="Sil">
                           <IconButton 
                             size="small"
@@ -1699,9 +1972,9 @@ const Offers = () => {
           <Button
             variant="outlined"
             startIcon={<LocalOfferIcon />}
-            onClick={() => {
+            onClick={async () => {
               if (viewOffer) {
-                generatePDF(viewOffer);
+                await generatePDF(viewOffer);
               }
             }}
             sx={{
@@ -2167,7 +2440,7 @@ const Offers = () => {
               label="Vergi Oranı (%)"
               type="number"
               value={productForm.taxRate}
-              onChange={(e) => setProductForm({ ...productForm, taxRate: parseFloat(e.target.value) || 18 })}
+              onChange={(e) => setProductForm({ ...productForm, taxRate: parseFloat(e.target.value) || 20 })}
               inputProps={{ min: 0, max: 100, step: 0.01 }}
             />
         </Box>
@@ -2180,7 +2453,7 @@ const Offers = () => {
               description: '',
               unit: Unit.ADET,
               unitPrice: 0,
-              taxRate: 18
+              taxRate: 20
             });
           }}>İptal</Button>
           <Button 

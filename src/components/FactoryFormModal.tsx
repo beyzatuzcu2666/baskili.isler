@@ -11,14 +11,15 @@ import {
   Switch,
   Typography,
   IconButton,
+  Divider,
 } from '@mui/material';
-import { Close as CloseIcon, Factory as FactoryIcon } from '@mui/icons-material';
-import { Factory } from '../types/factory';
+import { Close as CloseIcon, Factory as FactoryIcon, Person as PersonIcon } from '@mui/icons-material';
+import { Factory, CreateFactoryRequest, UpdateFactoryRequest } from '../types/factory';
 
 interface FactoryFormModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: Omit<Factory, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  onSubmit: (data: CreateFactoryRequest | UpdateFactoryRequest) => void;
   initialData?: Factory;
   title: string;
   isUpdate?: boolean;
@@ -32,47 +33,88 @@ export const FactoryFormModal: React.FC<FactoryFormModalProps> = ({
   title,
   isUpdate = false,
 }) => {
-  const [formData, setFormData] = useState<Omit<Factory, 'id' | 'createdAt' | 'updatedAt'>>({
-    name: '',
-    address: '',
-    phoneNumber: '',
-    active: true,
+  const [formData, setFormData] = useState<CreateFactoryRequest>({
+    factory: {
+      name: '',
+      address: '',
+      factoryNumber: '',
+      active: true,
+    },
+    user: {
+      name: '',
+      email: '',
+      phoneNumber: '',
+    }
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (initialData) {
+    if (initialData && isUpdate) {
+      // Update mode - sadece factory bilgileri
       setFormData({
-        name: initialData.name,
-        address: initialData.address,
-        phoneNumber: initialData.phoneNumber,
-        active: initialData.active,
+        factory: {
+          name: initialData.name,
+          address: initialData.address,
+          factoryNumber: initialData.factoryNumber || '',
+          active: initialData.active ?? true,
+        },
+        user: {
+          name: '',
+          email: '',
+          phoneNumber: '',
+        }
       });
     } else {
+      // Create mode - tüm bilgiler
       setFormData({
-        name: '',
-        address: '',
-        phoneNumber: '',
-        active: true,
+        factory: {
+          name: '',
+          address: '',
+          factoryNumber: '',
+          active: true,
+        },
+        user: {
+          name: '',
+          email: '',
+          phoneNumber: '',
+        }
       });
     }
     setErrors({});
-  }, [initialData, open]);
+  }, [initialData, open, isUpdate]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name.trim()) {
-      newErrors.name = 'Fabrika adı gereklidir';
+    // Factory validation
+    if (!formData.factory.name.trim()) {
+      newErrors['factory.name'] = 'Fabrika adı gereklidir';
     }
 
-    if (!formData.address.trim()) {
-      newErrors.address = 'Adres gereklidir';
+    if (!formData.factory.address.trim()) {
+      newErrors['factory.address'] = 'Adres gereklidir';
     }
 
-    if (!formData.phoneNumber.trim()) {
-      newErrors.phoneNumber = 'Telefon numarası gereklidir';
+    if (!formData.factory.factoryNumber.trim()) {
+      newErrors['factory.factoryNumber'] = 'Fabrika numarası gereklidir';
+    }
+
+    // User validation - sadece create mode'da
+    if (!isUpdate) {
+      if (!formData.user.name.trim()) {
+        newErrors['user.name'] = 'Kullanıcı adı gereklidir';
+      }
+
+      if (!formData.user.email.trim()) {
+        newErrors['user.email'] = 'E-posta gereklidir';
+      } else if (!/\S+@\S+\.\S+/.test(formData.user.email)) {
+        newErrors['user.email'] = 'Geçerli bir e-posta adresi giriniz';
+      }
+
+      if (!formData.user.phoneNumber.trim()) {
+        newErrors['user.phoneNumber'] = 'Kullanıcı telefon numarası gereklidir';
+      }
     }
 
     setErrors(newErrors);
@@ -81,15 +123,35 @@ export const FactoryFormModal: React.FC<FactoryFormModalProps> = ({
 
   const handleSubmit = () => {
     if (validateForm()) {
-      onSubmit(formData);
+      if (isUpdate) {
+        // Update mode - sadece factory bilgileri
+        const updateData: UpdateFactoryRequest = {
+          name: formData.factory.name,
+          address: formData.factory.address,
+          factoryNumber: formData.factory.factoryNumber,
+          active: initialData?.active ?? true,
+        };
+        onSubmit(updateData);
+      } else {
+        // Create mode - tüm bilgiler
+        onSubmit(formData);
+      }
       onClose();
     }
   };
 
-  const handleInputChange = (field: keyof typeof formData, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+  const handleInputChange = (section: 'factory' | 'user', field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value
+      }
+    }));
+    
+    const errorKey = `${section}.${field}`;
+    if (errors[errorKey]) {
+      setErrors(prev => ({ ...prev, [errorKey]: '' }));
     }
   };
 
@@ -144,10 +206,10 @@ export const FactoryFormModal: React.FC<FactoryFormModalProps> = ({
             <TextField
               fullWidth
               label="Fabrika Adı"
-              value={formData.name}
-              onChange={(e) => handleInputChange('name', e.target.value)}
-              error={!!errors.name}
-              helperText={errors.name}
+              value={formData.factory.name}
+              onChange={(e) => handleInputChange('factory', 'name', e.target.value)}
+              error={!!errors['factory.name']}
+              helperText={errors['factory.name']}
               sx={{
                 '& .MuiOutlinedInput-root': {
                   borderRadius: 2,
@@ -162,11 +224,13 @@ export const FactoryFormModal: React.FC<FactoryFormModalProps> = ({
             />
             <TextField
               fullWidth
-              label="Telefon Numarası"
-              value={formData.phoneNumber}
-              onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-              error={!!errors.phoneNumber}
-              helperText={errors.phoneNumber}
+              label="Adres"
+              multiline
+              rows={3}
+              value={formData.factory.address}
+              onChange={(e) => handleInputChange('factory', 'address', e.target.value)}
+              error={!!errors['factory.address']}
+              helperText={errors['factory.address']}
               sx={{
                 '& .MuiOutlinedInput-root': {
                   borderRadius: 2,
@@ -183,13 +247,74 @@ export const FactoryFormModal: React.FC<FactoryFormModalProps> = ({
 
           <TextField
             fullWidth
-            label="Adres"
-            multiline
-            rows={3}
-            value={formData.address}
-            onChange={(e) => handleInputChange('address', e.target.value)}
-            error={!!errors.address}
-            helperText={errors.address}
+            label="Fabrika Numarası"
+            value={formData.factory.factoryNumber}
+            onChange={(e) => handleInputChange('factory', 'factoryNumber', e.target.value)}
+            error={!!errors['factory.factoryNumber']}
+            helperText={errors['factory.factoryNumber']}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                  borderColor: '#10b981',
+                },
+              },
+              '& .MuiInputLabel-root.Mui-focused': {
+                color: '#10b981',
+              },
+            }}
+          />
+
+          <Divider sx={{ my: 2 }} />
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+            <TextField
+              fullWidth
+              label="Kullanıcı Adı"
+              value={formData.user.name}
+              onChange={(e) => handleInputChange('user', 'name', e.target.value)}
+              error={!!errors['user.name']}
+              helperText={errors['user.name']}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#10b981',
+                  },
+                },
+                '& .MuiInputLabel-root.Mui-focused': {
+                  color: '#10b981',
+                },
+              }}
+            />
+            <TextField
+              fullWidth
+              label="E-posta"
+              value={formData.user.email}
+              onChange={(e) => handleInputChange('user', 'email', e.target.value)}
+              error={!!errors['user.email']}
+              helperText={errors['user.email']}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#10b981',
+                  },
+                },
+                '& .MuiInputLabel-root.Mui-focused': {
+                  color: '#10b981',
+                },
+              }}
+            />
+          </Box>
+
+          <TextField
+            fullWidth
+            label="Kullanıcı Telefon Numarası"
+            value={formData.user.phoneNumber}
+            onChange={(e) => handleInputChange('user', 'phoneNumber', e.target.value)}
+            error={!!errors['user.phoneNumber']}
+            helperText={errors['user.phoneNumber']}
             sx={{
               '& .MuiOutlinedInput-root': {
                 borderRadius: 2,
@@ -206,8 +331,8 @@ export const FactoryFormModal: React.FC<FactoryFormModalProps> = ({
           <FormControlLabel
             control={
               <Switch
-                checked={formData.active}
-                onChange={(e) => handleInputChange('active', e.target.checked)}
+                checked={formData.factory.active}
+                onChange={(e) => handleInputChange('factory', 'active', e.target.checked)}
                 sx={{
                   '& .MuiSwitch-switchBase.Mui-checked': {
                     color: '#10b981',

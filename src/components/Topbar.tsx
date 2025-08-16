@@ -26,6 +26,8 @@ import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
 import { notificationsService } from '../services/notifications';
 import NotificationPanel from './NotificationPanel';
+import DealerSelector from './DealerSelector';
+import { ProfileModal } from './ProfileModal';
 
 
 interface TopbarProps {
@@ -37,6 +39,7 @@ interface TopbarProps {
 const Topbar = ({ drawerWidth, isCollapsed, onToggleSidebar }: TopbarProps) => {
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [notificationAnchor, setNotificationAnchor] = useState<null | HTMLElement>(null);
+    const [profileModalOpen, setProfileModalOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const navigate = useNavigate();
     const theme = useTheme();
@@ -149,6 +152,8 @@ const Topbar = ({ drawerWidth, isCollapsed, onToggleSidebar }: TopbarProps) => {
                         </IconButton>
                     </Tooltip>
 
+                    {/* Dealer Selector - Sadece SUPER_ADMIN için */}
+                    <DealerSelector />
 
                 </Box>
 
@@ -229,7 +234,13 @@ const Topbar = ({ drawerWidth, isCollapsed, onToggleSidebar }: TopbarProps) => {
                                         boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)',
                                     }}
                                 >
-                                    BT
+                                    {(() => {
+                                        const userInfo = authService.getUserInfo();
+                                        if (userInfo && userInfo.name) {
+                                            return userInfo.name.charAt(0).toUpperCase();
+                                        }
+                                        return 'U';
+                                    })()}
                                 </Avatar>
                             </IconButton>
                         </Tooltip>
@@ -242,6 +253,12 @@ const Topbar = ({ drawerWidth, isCollapsed, onToggleSidebar }: TopbarProps) => {
                 anchorEl={notificationAnchor}
                 open={Boolean(notificationAnchor)}
                 onClose={handleClose}
+            />
+
+            {/* Profile Modal */}
+            <ProfileModal
+                open={profileModalOpen}
+                onClose={() => setProfileModalOpen(false)}
             />
 
             {/* Profil Menüsü */}
@@ -263,7 +280,19 @@ const Topbar = ({ drawerWidth, isCollapsed, onToggleSidebar }: TopbarProps) => {
                 anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
             >
                 <MenuItem 
-                    onClick={handleClose}
+                    onClick={async () => {
+                        try {
+                            // Profile'a basınca getCurrentUser'a istek at
+                            await authService.getCurrentUser();
+                            setProfileModalOpen(true);
+                            handleClose();
+                        } catch (error) {
+                            console.error('Kullanıcı bilgileri yüklenemedi:', error);
+                            // Hata olsa bile modal'ı aç
+                            setProfileModalOpen(true);
+                            handleClose();
+                        }
+                    }}
                     sx={{ 
                         py: 2,
                         px: 3,
@@ -278,7 +307,7 @@ const Topbar = ({ drawerWidth, isCollapsed, onToggleSidebar }: TopbarProps) => {
                     </ListItemIcon>
                     <ListItemText 
                         primary="Profil" 
-                        sx={{ '& .MuiListItemText-primary': { color: '#1e293b', fontWeight: 500 } }}
+                        sx={{ '& .MuiListItemText-primary': { color: '#1f2937', fontWeight: 500 } }}
                     />
                 </MenuItem>
                 

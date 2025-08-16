@@ -23,10 +23,10 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import BusinessIcon from '@mui/icons-material/Business';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
-import PrintIcon from '@mui/icons-material/Print';
 import FactoryIcon from '@mui/icons-material/Factory';
 import PersonIcon from '@mui/icons-material/Person';
 import NotificationsIcon from '@mui/icons-material/Notifications';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { DRAWER_WIDTH, COLLAPSED_DRAWER_WIDTH } from '../App';
 import { authService } from '../services/auth';
 
@@ -58,6 +58,14 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
 
   const menuItems = [
     { 
+      text: 'Dashboard', 
+      path: '/dashboard', 
+      icon: <TrendingUpIcon />,
+      color: '#06b6d4',
+      description: 'Sistem genelinde özet',
+      requiredRoles: ['SUPER_ADMIN']
+    },
+    { 
       text: 'Ürünler', 
       path: '/products', 
       icon: <InventoryIcon />,
@@ -74,6 +82,14 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
       requiredRoles: ['SUPER_ADMIN', 'DEALER_ADMIN', 'DEALER_USER', 'FACTORY_USER']
     },
     { 
+      text: 'Bayiler', 
+      path: '/dealers', 
+      icon: <BusinessIcon />,
+      color: '#7c3aed',
+      description: 'Bayi yönetimi',
+      requiredRoles: ['SUPER_ADMIN', 'DEALER_ADMIN']
+    },
+    { 
       text: 'Teklifler', 
       path: '/offers', 
       icon: <LocalOfferIcon />,
@@ -87,7 +103,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
       icon: <ShoppingCartIcon />,
       color: '#1e3a8a',
       description: 'Sipariş takibi',
-      requiredRoles: ['SUPER_ADMIN', 'DEALER_ADMIN', 'FACTORY_USER']
+      requiredRoles: ['SUPER_ADMIN', 'DEALER_ADMIN', 'DEALER_USER', 'FACTORY_USER']
     },
     { 
       text: 'Bildirimler', 
@@ -154,19 +170,69 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
   const userRole = authService.getUserRole();
 
   // FACTORY_USER ise sadece Siparişler menüsü
-  const filteredMenuItems = userRole === 'FACTORY_USER'
-    ? [
-        {
-          text: 'Siparişler',
-          path: '/orders',
-          icon: <ShoppingCartIcon />,
-          color: '#1e3a8a',
-          description: 'Sipariş takibi',
-        },
-      ]
-    : filterMenuItemsByRole(menuItems);
-
-  const filteredManagementItems = userRole === 'FACTORY_USER' ? [] : filterMenuItemsByRole(managementItems);
+  // DEALER_ADMIN ise sadece kendi bayi bilgilerini görebilmeli
+  let filteredMenuItems: any[];
+  let filteredManagementItems: any[];
+  
+  if (userRole === 'FACTORY_USER') {
+    filteredMenuItems = [
+      {
+        text: 'Siparişler',
+        path: '/orders',
+        icon: <ShoppingCartIcon />,
+        color: '#1e3a8a',
+        description: 'Sipariş takibi',
+      },
+    ];
+    filteredManagementItems = [];
+  } else if (userRole === 'DEALER_ADMIN') {
+    // DEALER_ADMIN için sadece kendi bayi bilgilerini göster
+    filteredMenuItems = [
+      {
+        text: 'Ürünler',
+        path: '/products',
+        icon: <InventoryIcon />,
+        color: '#64748b',
+        description: 'Ürün kataloğu',
+      },
+      {
+        text: 'Müşteriler',
+        path: '/brands',
+        icon: <BusinessIcon />,
+        color: '#10b981',
+        description: 'Müşteri yönetimi',
+      },
+      {
+        text: 'Teklifler',
+        path: '/offers',
+        icon: <LocalOfferIcon />,
+        color: '#f97316',
+        description: 'Fiyat teklifleri',
+      },
+      {
+        text: 'Siparişler',
+        path: '/orders',
+        icon: <ShoppingCartIcon />,
+        color: '#1e3a8a',
+        description: 'Sipariş takibi',
+      },
+    ];
+    
+    // DEALER_ADMIN için Yönetim bölümüne Kullanıcılar ekle
+    filteredManagementItems = [
+      {
+        text: 'Kullanıcılar',
+        path: '/users',
+        icon: <PersonIcon />,
+        color: '#06b6d4',
+        description: 'Kullanıcı yönetimi',
+        isNew: true,
+      }
+    ];
+  } else {
+    filteredMenuItems = filterMenuItemsByRole(menuItems);
+    filteredManagementItems = filterMenuItemsByRole(managementItems);
+  }
 
   const renderMenuItem = (item: any, isActive: boolean) => (
     <Tooltip 
@@ -310,14 +376,74 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
                 justifyContent: 'center',
                 width: 60,
                 height: 60,
-                borderRadius: 2,
-                background: 'linear-gradient(135deg, #f97316 0%, #1e3a8a 100%)',
+                borderRadius: '50%',
+                background: 'white',
                 mb: 2,
-                boxShadow: '0 8px 25px rgba(249, 115, 22, 0.3)',
+                boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15)',
+                position: 'relative',
+                overflow: 'hidden',
               }}
             >
-              <PrintIcon sx={{ fontSize: 28, color: 'white' }} />
-      </Box>
+              {/* CMYK Logo */}
+              <Box
+                sx={{
+                  position: 'relative',
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {/* CMYK Renkli Splash */}
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    width: '100%',
+                    height: '100%',
+                    background: `
+                      radial-gradient(circle at 30% 30%, #ff00ff 0%, #ff00ff 25%, transparent 25%),
+                      radial-gradient(circle at 70% 30%, #ffff00 0%, #ffff00 25%, transparent 25%),
+                      radial-gradient(circle at 30% 70%, #00ffff 0%, #00ffff 25%, transparent 25%),
+                      radial-gradient(circle at 70% 70%, #000000 0%, #000000 25%, transparent 25%)
+                    `,
+                    borderRadius: '50%',
+                  }}
+                />
+                
+                {/* B ve i Harfleri */}
+                <Typography
+                  variant="h4"
+                  sx={{
+                    fontWeight: 900,
+                    color: 'white',
+                    fontSize: '1.5rem',
+                    textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
+                    zIndex: 1,
+                    position: 'relative',
+                    lineHeight: 1,
+                  }}
+                >
+                  B
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: 900,
+                    color: 'white',
+                    fontSize: '0.8rem',
+                    textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
+                    zIndex: 1,
+                    position: 'absolute',
+                    bottom: '15%',
+                    right: '25%',
+                    lineHeight: 1,
+                  }}
+                >
+                  i
+                </Typography>
+              </Box>
+            </Box>
             
             <Typography
               variant="h6"
@@ -329,7 +455,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
                 mb: 0.5,
               }}
             >
-              Baskılı İşler
+              BASKILI İŞLER
             </Typography>
             
             <Typography
@@ -355,12 +481,56 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
                 justifyContent: 'center',
                 width: 40,
                 height: 40,
-                borderRadius: 2,
-                background: 'linear-gradient(135deg, #f97316 0%, #1e3a8a 100%)',
-                boxShadow: '0 4px 15px rgba(249, 115, 22, 0.3)',
+                borderRadius: '50%',
+                background: 'white',
+                boxShadow: '0 4px 15px rgba(0, 0, 0, 0.15)',
+                position: 'relative',
+                overflow: 'hidden',
               }}
             >
-              <PrintIcon sx={{ fontSize: 20, color: 'white' }} />
+              {/* CMYK Logo - Collapsed */}
+              <Box
+                sx={{
+                  position: 'relative',
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {/* CMYK Renkli Splash */}
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    width: '100%',
+                    height: '100%',
+                    background: `
+                      radial-gradient(circle at 30% 30%, #ff00ff 0%, #ff00ff 25%, transparent 25%),
+                      radial-gradient(circle at 70% 30%, #ffff00 0%, #ffff00 25%, transparent 25%),
+                      radial-gradient(circle at 30% 70%, #00ffff 0%, #00ffff 25%, transparent 25%),
+                      radial-gradient(circle at 70% 70%, #000000 0%, #000000 25%, transparent 25%)
+                    `,
+                    borderRadius: '50%',
+                  }}
+                />
+                
+                {/* B Harfi - Collapsed */}
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: 900,
+                    color: 'white',
+                    fontSize: '1rem',
+                    textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
+                    zIndex: 1,
+                    position: 'relative',
+                    lineHeight: 1,
+                  }}
+                >
+                  B
+                </Typography>
+              </Box>
             </Box>
           </Tooltip>
         )}

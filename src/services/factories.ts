@@ -1,5 +1,5 @@
 import { http } from './http';
-import { Factory } from '../types/factory';
+import { Factory, CreateFactoryRequest, UpdateFactoryRequest } from '../types/factory';
 
 export const factoriesService = {
   async getAll(onlyActive?: boolean): Promise<Factory[]> {
@@ -21,7 +21,7 @@ export const factoriesService = {
     }
   },
 
-  async create(factoryData: Omit<Factory, 'id' | 'createdAt' | 'updatedAt'>): Promise<Factory> {
+  async create(factoryData: CreateFactoryRequest): Promise<Factory> {
     try {
       const response = await http.post('/factories', factoryData);
       return response.data || response;
@@ -31,7 +31,7 @@ export const factoriesService = {
     }
   },
 
-  async update(factoryId: number, factoryData: Partial<Omit<Factory, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Factory> {
+  async update(factoryId: number, factoryData: UpdateFactoryRequest): Promise<Factory> {
     try {
       const response = await http.put(`/factories/${factoryId}`, factoryData);
       return response.data || response;

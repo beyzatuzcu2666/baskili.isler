@@ -18,7 +18,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRoles
   if (requiredRoles && requiredRoles.length > 0) {
     const userRole = authService.getUserRole();
     if (!userRole || !requiredRoles.includes(userRole)) {
-      return <Navigate to="/products" replace />;
+      // Role göre default sayfa yönlendirmesi
+      const defaultRoute = userRole === 'FACTORY_USER' ? '/orders' : '/products';
+      return <Navigate to={defaultRoute} replace />;
     }
   }
 

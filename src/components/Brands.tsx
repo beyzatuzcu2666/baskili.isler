@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { brandsService } from '../services/brands';
 import { Brand } from '../services/brands';
+import { authService } from '../services/auth';
+import { useDealer } from '../contexts/DealerContext';
 import { 
   Button, 
   Box, 
@@ -45,6 +47,7 @@ import { ConfirmationDialog } from './ConfirmationDialog';
 import { toast } from 'react-toastify';
 
 const Brands: React.FC = () => {
+  const { selectedDealer } = useDealer();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,15 +62,35 @@ const Brands: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [viewBrand, setViewBrand] = useState<Brand | null>(null);
+  const [mostQuotedBrand, setMostQuotedBrand] = useState<{
+    brandId: number;
+    brandName: string;
+    quoteCount: number;
+    totalRevenue: number;
+  } | null>(null);
 
   useEffect(() => {
     const fetchBrands = async () => {
       try {
-        const data = await brandsService.getBrands();
+        const userRole = authService.getUserRole();
+        
+        let data;
+        if (userRole === 'DEALER_ADMIN') {
+          // DEALER_ADMIN için sadece kendi bayisinin müşterilerini getir
+          data = await brandsService.getDealerBrands();
+        } else if (userRole === 'SUPER_ADMIN' && selectedDealer) {
+          // SUPER_ADMIN için seçili dealer'ın müşterilerini getir
+          data = await brandsService.getDealerBrands(selectedDealer.id);
+        } else {
+          // SUPER_ADMIN için tüm müşterileri getir (dealer seçilmemişse)
+          data = await brandsService.getBrands();
+        }
+        
         if (!Array.isArray(data)) {
           throw new Error('Invalid brands data format');
         }
         setBrands(data);
+        console.log('Loaded brands:', data); // Debug için
       } catch (err) {
         setError('Brands data could not be loaded');
         console.error('Brands fetch error:', err);
@@ -77,23 +100,77 @@ const Brands: React.FC = () => {
     };
 
     fetchBrands();
-  }, []);
+    loadMostQuotedBrand();
+  }, [selectedDealer]);
 
-  const filteredBrands = brands.filter(brand =>
-    brand.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    brand.contactEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    brand.contactPhone.includes(searchTerm)
-  );
+  const loadMostQuotedBrand = async () => {
+    try {
+      const userRole = authService.getUserRole();
+      let data;
+      
+      if (userRole === 'SUPER_ADMIN' && selectedDealer) {
+        data = await brandsService.getMostQuotedBrand(selectedDealer.id);
+      } else {
+        data = await brandsService.getMostQuotedBrand();
+      }
+      
+      setMostQuotedBrand(data);
+    } catch (err) {
+      console.error('Most quoted brand load error:', err);
+    }
+  };
+
+  const filteredBrands = brands
+    .filter(brand =>
+      brand.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      brand.contactEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      brand.contactPhone.includes(searchTerm)
+    )
+    .sort((a, b) => {
+      // createdAt alanına göre sırala (en yeni önce)
+      if (!a.createdAt && !b.createdAt) return 0;
+      if (!a.createdAt) return 1;
+      if (!b.createdAt) return -1;
+      
+      const dateA = new Date(a.createdAt);
+      const dateB = new Date(b.createdAt);
+      return dateB.getTime() - dateA.getTime(); // En yeni önce
+    });
 
   const handleAddBrand = async (data: {
     name: string;
     contactEmail: string;
     contactPhone: string;
+    assignedUserId?: number;
   }) => {
+    // SUPER_ADMIN için dealer ID kontrolü
+    const userRole = authService.getUserRole();
+    if (userRole === 'SUPER_ADMIN' && !selectedDealer) {
+      toast.error('Lütfen önce bir bayi seçin');
+      return;
+    }
+
     setIsCreating(true);
     try {
-      const createdBrand = await brandsService.createBrand(data);
-      const updatedBrands = await brandsService.getBrands();
+      // SUPER_ADMIN için dealer ID ekle
+      const createData = {
+        ...data,
+        dealerId: userRole === 'SUPER_ADMIN' ? selectedDealer?.id : undefined
+      };
+
+      const createdBrand = await brandsService.createBrand(createData);
+      
+      // Sayfa yenile - dealer'a göre doğru verileri getir
+      let updatedBrands;
+      
+      if (userRole === 'DEALER_ADMIN') {
+        updatedBrands = await brandsService.getDealerBrands();
+      } else if (userRole === 'SUPER_ADMIN' && selectedDealer) {
+        updatedBrands = await brandsService.getDealerBrands(selectedDealer.id);
+      } else {
+        updatedBrands = await brandsService.getBrands();
+      }
+      
       setBrands(updatedBrands);
       setError(null);
       toast.success('Müşteri başarıyla eklendi');
@@ -112,11 +189,24 @@ const Brands: React.FC = () => {
     name: string;
     contactEmail: string;
     contactPhone: string;
+    assignedUserId?: number;
   }) => {
     setIsUpdating(true);
     try {
       await brandsService.updateBrand(brandId, data);
-      const updatedBrands = await brandsService.getBrands();
+      
+      // Sayfa yenile - dealer'a göre doğru verileri getir
+      const userRole = authService.getUserRole();
+      let updatedBrands;
+      
+      if (userRole === 'DEALER_ADMIN') {
+        updatedBrands = await brandsService.getDealerBrands();
+      } else if (userRole === 'SUPER_ADMIN' && selectedDealer) {
+        updatedBrands = await brandsService.getDealerBrands(selectedDealer.id);
+      } else {
+        updatedBrands = await brandsService.getBrands();
+      }
+      
       setBrands(updatedBrands);
       setError(null);
       toast.success('Müşteri başarıyla güncellendi');
@@ -140,7 +230,19 @@ const Brands: React.FC = () => {
       setIsDeleting(true);
       try {
         await brandsService.deleteBrand(deleteBrandId);
-        const updatedBrands = await brandsService.getBrands();
+        
+        // Sayfa yenile - dealer'a göre doğru verileri getir
+        const userRole = authService.getUserRole();
+        let updatedBrands;
+        
+        if (userRole === 'DEALER_ADMIN') {
+          updatedBrands = await brandsService.getDealerBrands();
+        } else if (userRole === 'SUPER_ADMIN' && selectedDealer) {
+          updatedBrands = await brandsService.getDealerBrands(selectedDealer.id);
+        } else {
+          updatedBrands = await brandsService.getBrands();
+        }
+        
         setBrands(updatedBrands);
         setConfirmDelete(false);
         setDeleteBrandId(null);
@@ -182,29 +284,7 @@ const Brands: React.FC = () => {
   };
 
   // Statistics Cards Data
-  const statsData = [
-    {
-      title: 'Toplam Müşteri',
-      value: brands.length,
-      icon: <BusinessIcon />,
-      color: '#10b981',
-      trend: '+12%'
-    },
-    {
-      title: 'Bu Yıl Eklenen',
-      value: Math.floor(brands.length * 0.7),
-      icon: <TrendingUpIcon />,
-      color: '#f97316',
-      trend: '+18%'
-    },
-    {
-      title: 'Bu Ay Eklenen',
-      value: Math.floor(brands.length * 0.3),
-      icon: <AddIcon />,
-      color: '#1e3a8a',
-      trend: '+25%'
-    }
-  ];
+
 
   if (loading) {
     return (
@@ -237,68 +317,82 @@ const Brands: React.FC = () => {
         </Typography>
       </Box>
 
-      {/* Statistics Cards */}
-      <Box sx={{ 
-        display: 'grid', 
-        gridTemplateColumns: { 
-          xs: '1fr', 
-          sm: 'repeat(2, 1fr)', 
-          lg: 'repeat(3, 1fr)' 
-        },
-        gap: 3, 
-        mb: 4 
-      }}>
-        {statsData.map((stat, index) => (
-          <Box key={index}>
-            <Card 
-              sx={{ 
-                background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                border: '1px solid #e5e7eb',
-                borderRadius: 2,
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                },
-                transition: 'all 0.2s ease-in-out'
-              }}
-            >
-              <CardContent sx={{ p: 3 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box>
-                    <Typography variant="body2" sx={{ color: '#6b7280', mb: 1 }}>
-                      {stat.title}
-                    </Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 700, color: '#1f2937', mb: 1 }}>
-                      {stat.value}
-                    </Typography>
-                    <Chip 
-                      label={stat.trend} 
-                      size="small" 
-                      sx={{ 
-                        backgroundColor: `${stat.color}20`,
-                        color: stat.color,
-                        fontWeight: 600,
-                        fontSize: '0.75rem'
-                      }} 
-                    />
-                  </Box>
-                  <Avatar 
-                    sx={{ 
-                      backgroundColor: `${stat.color}20`,
-                      color: stat.color,
-                      width: 56,
-                      height: 56
-                    }}
-                  >
-                    {stat.icon}
-                  </Avatar>
-                </Box>
-              </CardContent>
-            </Card>
-          </Box>
-        ))}
+      {/* Stats Cards */}
+      <Box sx={{ display: 'flex', gap: 3, mb: 3, flexWrap: 'wrap' }}>
+        {/* Toplam Marka */}
+        <Card sx={{ flex: '1 1 250px', background: 'linear-gradient(135deg, #3b82f615 0%, #3b82f608 100%)', border: '1px solid #3b82f620' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: '#3b82f6' }}>
+                  {brands.length}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500 }}>
+                  Toplam Marka
+                </Typography>
+              </Box>
+              <Avatar sx={{ bgcolor: '#3b82f620', color: '#3b82f6' }}>
+                <BusinessIcon />
+              </Avatar>
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* En Çok Teklif Alan Marka */}
+        <Card sx={{ flex: '1 1 250px', background: 'linear-gradient(135deg, #ef444415 0%, #ef444408 100%)', border: '1px solid #ef444420' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: '#ef4444', mb: 0.5 }}>
+                  {mostQuotedBrand?.quoteCount || 0}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {mostQuotedBrand?.brandName || 'Marka Yok'}
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                  En Çok Teklif Alan
+                </Typography>
+              </Box>
+              <Avatar sx={{ bgcolor: '#ef444420', color: '#ef4444', ml: 1 }}>
+                <TrendingUpIcon />
+              </Avatar>
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* Bu Ay Eklenen */}
+        <Card sx={{ flex: '1 1 250px', background: 'linear-gradient(135deg, #10b98115 0%, #10b98108 100%)', border: '1px solid #10b98120' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: '#10b981' }}>
+                  {(() => {
+                    const thisMonthBrands = brands.filter(brand => {
+                      console.log('Brand data:', brand); // Debug için
+                      if (!brand.createdAt) return false;
+                      const brandDate = new Date(brand.createdAt);
+                      const now = new Date();
+                      const isThisMonth = brandDate.getMonth() === now.getMonth() && 
+                                        brandDate.getFullYear() === now.getFullYear();
+                      console.log('Brand:', brand.name, 'Date:', brand.createdAt, 'IsThisMonth:', isThisMonth);
+                      return isThisMonth;
+                    });
+                    console.log('This month brands count:', thisMonthBrands.length);
+                    return thisMonthBrands.length;
+                  })()}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500 }}>
+                  Bu Ay Eklenen
+                </Typography>
+              </Box>
+              <Avatar sx={{ bgcolor: '#10b98120', color: '#10b981' }}>
+                <AddIcon />
+              </Avatar>
+            </Box>
+          </CardContent>
+        </Card>
       </Box>
+
 
       {/* Action Bar */}
       <Card sx={{ mb: 3, border: '1px solid #e5e7eb', borderRadius: 2 }}>
@@ -451,7 +545,16 @@ const Brands: React.FC = () => {
                     </TableCell>
                     <TableCell sx={{ py: 2 }}>
                       <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                        {new Date().toLocaleDateString('tr-TR')}
+                        {brand.createdAt 
+                          ? new Date(brand.createdAt).toLocaleDateString('tr-TR', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
+                          : 'Tarih bilgisi yok'
+                        }
                       </Typography>
                     </TableCell>
                     <TableCell align="center" sx={{ py: 2 }}>
@@ -588,6 +691,18 @@ const Brands: React.FC = () => {
                     #{viewBrand.id}
                   </Typography>
                 </Box>
+
+                {/* Assigned User Bilgisi */}
+                {viewBrand.assignedUserId && (
+                  <Box>
+                    <Typography variant="body2" sx={{ color: '#6b7280', mb: 0.5 }}>
+                      Atanan Kullanıcı
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500, color: '#374151' }}>
+                      ID: {viewBrand.assignedUserId}
+                    </Typography>
+                  </Box>
+                )}
               </Stack>
             </Box>
           )}

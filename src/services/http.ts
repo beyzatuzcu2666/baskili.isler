@@ -47,8 +47,17 @@ export const http = {
   async post<T = any>(endpoint: string, data: any): Promise<T> {
     try {
       const headers = new Headers();
-      headers.set('Content-Type', 'application/json');
-      headers.set('Accept', 'application/json');
+      let body;
+      
+      if (data instanceof FormData) {
+        // FormData için Content-Type header'ı eklenmez, fetch otomatik ayarlar
+        body = data;
+        headers.set('Accept', 'application/json');
+      } else {
+        headers.set('Content-Type', 'application/json');
+        headers.set('Accept', 'application/json');
+        body = JSON.stringify(data);
+      }
       
       const token = authService.getToken();
       if (token) {
@@ -58,7 +67,7 @@ export const http = {
       const response = await fetch(`${BASE_URL}${endpoint}`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(data)
+        body
       });
       
       if (!response.ok) {
@@ -70,7 +79,18 @@ export const http = {
         throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || 'Unknown error'}`);
       }
       
-      return await response.json();
+      // HTTP 204 (No Content) response'ları için özel handling
+      if (response.status === 204) {
+        return { status: 204, success: true } as T;
+      }
+      
+      // Response body varsa JSON olarak parse et
+      const text = await response.text();
+      if (text) {
+        return JSON.parse(text);
+      }
+      
+      return { status: response.status, success: true } as T;
     } catch (error) {
       if (error instanceof Error) {
         throw error;

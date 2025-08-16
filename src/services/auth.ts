@@ -28,6 +28,37 @@ export const authService = {
     }
   },
 
+  // Şifre sıfırlama isteği gönder
+  forgotPassword: async (email: string) => {
+    try {
+      const response = await http.post('/auth/forgot-password', { email });
+      return response;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Şifre sıfırlama isteği gönderilemedi. Lütfen tekrar deneyin.');
+    }
+  },
+
+  // Şifre sıfırlama token'ı ile yeni şifre belirle
+  resetPassword: async (token: string, newPassword: string) => {
+    try {
+      const response = await http.post('/auth/reset-password', { token, newPassword });
+      return response;
+    } catch (error: any) {
+      // Backend'den gelen validation error'ları koru
+      if (error.response?.data?.validationErrors) {
+        throw error; // Validation error'ı olduğu gibi bırak
+      }
+      
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Şifre sıfırlanamadı. Lütfen tekrar deneyin.');
+    }
+  },
+
   getToken: () => {
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) {
@@ -65,6 +96,59 @@ export const authService = {
     return decodeToken(token);
   },
 
+  // Kullanıcı bilgilerini al (ProfileModal için)
+  getCurrentUser: async () => {
+    try {
+      const response = await http.get('/users/me');
+      return response.data || response;
+    } catch (error: any) {
+      console.error('Error fetching user profile:', error);
+      // Fallback olarak JWT token'dan bilgi al
+      const token = authService.getToken();
+      if (token) {
+        const userInfo = decodeToken(token);
+        return {
+          name: userInfo?.name || 'Kullanıcı',
+          email: userInfo?.email || '',
+          phone: userInfo?.phone || '',
+          role: userInfo?.role || '',
+        };
+      }
+      return null;
+    }
+  },
+
+  // Kullanıcı profil bilgilerini güncelle
+  updateUserProfile: async (profileData: { name: string; email: string; phoneNumber: string; role: string }) => {
+    try {
+      const response = await http.patch('/users/me', profileData);
+      return response.data || response;
+    } catch (error: any) {
+      console.error('Error updating user profile:', error);
+      throw new Error(error.message || 'Profil güncellenemedi');
+    }
+  },
+
+  // Kullanıcı şifresini değiştir
+  changePassword: async (currentPassword: string, newPassword: string) => {
+    try {
+      const response = await http.post('/auth/change-password', {
+        currentPassword,
+        newPassword
+      });
+      
+      // HTTP 204 (No Content) response'ları için özel handling
+      if (response.status === 204) {
+        return { success: true, message: 'Şifre başarıyla değiştirildi' };
+      }
+      
+      return response.data || response;
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      throw new Error(error.message || 'Şifre değiştirilemedi');
+    }
+  },
+
   // Kullanıcının rolünü al
   getUserRole: () => {
     const userInfo = authService.getUserInfo();
@@ -75,6 +159,18 @@ export const authService = {
   getUserId: () => {
     const userInfo = authService.getUserInfo();
     return userInfo?.sub || null;
+  },
+
+  // Kullanıcının Dealer ID'sini al
+  getUserDealerId: () => {
+    const userInfo = authService.getUserInfo();
+    return userInfo?.dealerId || null;
+  },
+
+  // Kullanıcının Factory ID'sini al
+  getUserFactoryId: () => {
+    const userInfo = authService.getUserInfo();
+    return userInfo?.factoryId || null;
   },
 
   // Token'ın süresi dolmuş mu kontrol et
@@ -127,13 +223,19 @@ export const authService = {
   // Teklifi siparişe dönüştürme yetkisi
   canConvertOfferToOrder: () => {
     const userRole = authService.getUserRole();
-    return ['SUPER_ADMIN', 'DEALER_ADMIN'].includes(userRole);
+    return ['SUPER_ADMIN', 'DEALER_ADMIN', 'DEALER_USER'].includes(userRole);
   },
 
   // Fabrikaları görme yetkisi
   canViewFactories: () => {
     const userRole = authService.getUserRole();
     return ['SUPER_ADMIN', 'FACTORY_USER'].includes(userRole);
+  },
+
+  // Fabrikaya atama yetkisi
+  canAssignFactory: () => {
+    const userRole = authService.getUserRole();
+    return userRole === 'SUPER_ADMIN';
   },
 
   // Kullanıcı ekleme yetkisi
@@ -146,5 +248,25 @@ export const authService = {
   canViewNotifications: () => {
     const userRole = authService.getUserRole();
     return ['SUPER_ADMIN', 'DEALER_ADMIN', 'FACTORY_USER'].includes(userRole);
+  },
+
+  // Login sonrası dealer yükleme
+  loadDealerAfterLogin: () => {
+    const userRole = authService.getUserRole();
+    const userDealerId = authService.getUserDealerId();
+    
+    // SUPER_ADMIN değilse, kendi dealer'ını seç
+    if (userRole !== 'SUPER_ADMIN' && userDealerId) {
+      localStorage.setItem('selectedDealerId', userDealerId.toString());
+      return;
+    }
+    
+    // SUPER_ADMIN ise ve localStorage'da kayıtlı dealer yoksa, varsayılan dealer'ı seç
+    if (userRole === 'SUPER_ADMIN') {
+      const savedDealerId = localStorage.getItem('selectedDealerId');
+      if (!savedDealerId) {
+        localStorage.setItem('selectedDealerId', '1'); // Varsayılan ana bayi
+      }
+    }
   }
 };

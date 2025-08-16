@@ -3,4 +3,8 @@ export interface Brand {
   name: string;
   contactEmail: string;
   contactPhone: string;
+  logoUrl?: string;
+  taxNumber?: string | null;
+  createdAt?: string;
+  assignedUserId?: number;
 }

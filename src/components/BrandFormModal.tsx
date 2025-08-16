@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -8,10 +8,18 @@ import {
   Button,
   Box,
   CircularProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Typography,
 } from '@mui/material';
 import { brandsService } from '../services/brands';
+import { usersService } from '../services/users';
 import { toast } from 'react-toastify';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import { useDealer } from '../contexts/DealerContext';
+import { authService } from '../services/auth';
 
 interface BrandFormModalProps {
   open: boolean;
@@ -20,12 +28,14 @@ interface BrandFormModalProps {
     name: string;
     contactEmail: string;
     contactPhone: string;
+    assignedUserId?: number;
   }) => Promise<{ id: number } | void>;
   initialData?: {
     name: string;
     contactEmail: string;
     contactPhone: string;
     logoUrl?: string;
+    assignedUserId?: number;
   };
   title: string;
   isUpdate?: boolean;
@@ -34,16 +44,22 @@ interface BrandFormModalProps {
 }
 
 export const BrandFormModal: React.FC<BrandFormModalProps> = ({ open, onClose, onSubmit, initialData, title, isUpdate, brandId, loading = false }) => {
+  const { selectedDealer } = useDealer();
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
     contactEmail: initialData?.contactEmail || '',
     contactPhone: initialData?.contactPhone || '',
+    assignedUserId: initialData?.assignedUserId || undefined,
   });
   const [phoneError, setPhoneError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
+  
+  // Kullanıcı listesi için state
+  const [users, setUsers] = useState<Array<{ id: number; name: string; email: string }>>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
 
   // Logo önizlemesi için effect
   React.useEffect(() => {
@@ -62,6 +78,39 @@ export const BrandFormModal: React.FC<BrandFormModalProps> = ({ open, onClose, o
       setLogoPreview((initialData as any).logoUrl);
     }
   }, [initialData]);
+
+  // Kullanıcıları yükle
+  useEffect(() => {
+    const loadUsers = async () => {
+      if (!open) return; // Modal açık değilse yükleme
+      
+      try {
+        setUsersLoading(true);
+        const userRole = authService.getUserRole();
+        let usersData;
+        
+        if (userRole === 'DEALER_ADMIN') {
+          // DEALER_ADMIN için kendi bayisinin kullanıcıları
+          usersData = await usersService.getUsers();
+        } else if (userRole === 'SUPER_ADMIN' && selectedDealer) {
+          // SUPER_ADMIN için seçili dealer'ın kullanıcıları
+          usersData = await usersService.getUsers(selectedDealer.id);
+        } else {
+          // SUPER_ADMIN için dealer seçilmemişse tüm kullanıcılar
+          usersData = await usersService.getUsers();
+        }
+        
+        setUsers(usersData || []);
+      } catch (error) {
+        console.error('Error loading users:', error);
+        toast.error('Kullanıcı listesi yüklenemedi');
+      } finally {
+        setUsersLoading(false);
+      }
+    };
+
+    loadUsers();
+  }, [open, selectedDealer]);
 
   // Türkiye telefon numarası validation fonksiyonu
   const validatePhoneNumber = (phone: string): string => {
@@ -112,6 +161,7 @@ export const BrandFormModal: React.FC<BrandFormModalProps> = ({ open, onClose, o
         name: initialData.name,
         contactEmail: initialData.contactEmail,
         contactPhone: initialData.contactPhone,
+        assignedUserId: initialData.assignedUserId,
       });
       setPhoneError('');
     }
@@ -308,6 +358,41 @@ export const BrandFormModal: React.FC<BrandFormModalProps> = ({ open, onClose, o
               inputMode: 'tel',
             }}
           />
+          
+          {/* Assigned User Seçimi */}
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Atanan Kullanıcı</InputLabel>
+            <Select
+              value={formData.assignedUserId || ''}
+              onChange={(e) => setFormData({ ...formData, assignedUserId: e.target.value as number || undefined })}
+              label="Atanan Kullanıcı"
+              disabled={usersLoading}
+            >
+              <MenuItem value="">
+                <em>Kullanıcı seçiniz</em>
+              </MenuItem>
+              {users.map((user) => (
+                <MenuItem key={user.id} value={user.id}>
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {user.name}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                      {user.email}
+                    </Typography>
+                  </Box>
+                </MenuItem>
+              ))}
+            </Select>
+            {usersLoading && (
+              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                <CircularProgress size={16} sx={{ mr: 1 }} />
+                <Typography variant="caption" color="text.secondary">
+                  Kullanıcılar yükleniyor...
+                </Typography>
+              </Box>
+            )}
+          </FormControl>
         </Box>
       </DialogContent>
       <DialogActions>

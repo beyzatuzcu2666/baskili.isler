@@ -45,6 +45,7 @@ export interface ProductCreateDto {
   unit: Unit;
   unitPrice: number;
   taxRate?: number;
+  dealerId?: number; // SUPER_ADMIN için dealer ID
 }
 
 // Product güncelleme için DTO

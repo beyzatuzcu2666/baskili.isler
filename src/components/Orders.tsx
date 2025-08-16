@@ -43,24 +43,27 @@ import {
   CloudUpload as CloudUploadIcon,
   PlayArrow as PlayArrowIcon,
   Inventory as InventoryIcon,
-  LocalShipping as LocalShippingIcon
+  LocalShipping as LocalShippingIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import { ordersService } from '../services/orders';
 import { factoriesService } from '../services/factories';
+import { imageService } from '../services/images';
 import { Order, OrderStatus, OrderStatusLabels, OrderStatusColors } from '../types/order';
 import { Factory } from '../types/factory';
 import { ConfirmationDialog } from './ConfirmationDialog';
 import { toast } from 'react-toastify';
 import { brandsService } from '../services/brands';
 import { authService } from '../services/auth';
+import { useDealer } from '../contexts/DealerContext';
 
 const Orders = () => {
+  const { selectedDealer } = useDealer();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
+
   
 
   
@@ -70,6 +73,7 @@ const Orders = () => {
   const [factories, setFactories] = useState<Factory[]>([]);
   const [selectedFactoryId, setSelectedFactoryId] = useState<number | ''>('');
   const [deadline, setDeadline] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
   const [assigningFactory, setAssigningFactory] = useState(false);
   const [brandLogoUploading, setBrandLogoUploading] = useState(false);
   const [brandLogoPreview, setBrandLogoPreview] = useState<string | null>(null);
@@ -118,10 +122,35 @@ const Orders = () => {
   const [completingOrder, setCompletingOrder] = useState(false);
   const [cancellingOrder, setCancellingOrder] = useState(false);
 
+  // Image upload states
+  const [selectedImages, setSelectedImages] = useState<Array<{ id: string; file: File; objectUrl: string }>>([]);
+  const [uploadedImageUrls, setUploadedImageUrls] = useState<Array<{ id: string; url: string }>>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+
+  // URL.createObjectURL memory leak'ini önle
+  useEffect(() => {
+    return () => {
+      // Component unmount olduğunda tüm object URL'leri temizle
+      selectedImages.forEach(img => {
+        URL.revokeObjectURL(img.objectUrl);
+      });
+    };
+  }, [selectedImages]);
+
+  // Modal kapandığında object URL'leri temizle
+  useEffect(() => {
+    if (!assignFactoryModalOpen) {
+      // Modal kapandığında tüm object URL'leri temizle
+      selectedImages.forEach(img => {
+        URL.revokeObjectURL(img.objectUrl);
+      });
+    }
+  }, [assignFactoryModalOpen, selectedImages]);
+
   useEffect(() => {
     loadOrders();
     loadFactories();
-  }, []);
+  }, [selectedDealer]);
 
   const loadFactories = async () => {
     try {
@@ -138,7 +167,24 @@ const Orders = () => {
 
   const loadOrders = async () => {
     try {
-      const data = await ordersService.getAll();
+      const userRole = authService.getUserRole();
+      
+      let data: Order[];
+      if (userRole === 'DEALER_ADMIN') {
+        // DEALER_ADMIN için sadece kendi bayisinin siparişlerini getir
+        data = await ordersService.getDealerOrders();
+      } else if (userRole === 'FACTORY_USER') {
+        // FACTORY_USER için sadece kendi fabrikasına atanmış siparişleri getir
+        // JWT'den factoryId otomatik olarak backend'de alınır
+        data = await ordersService.getFactoryOrders();
+      } else if (userRole === 'SUPER_ADMIN' && selectedDealer) {
+        // SUPER_ADMIN için seçili dealer'ın siparişlerini getir
+        data = await ordersService.getDealerOrders(selectedDealer.id);
+      } else {
+        // SUPER_ADMIN için tüm siparişleri getir (dealer seçilmemişse)
+        data = await ordersService.getAll();
+      }
+      
       setOrders(data);
       setError(null);
     } catch (error) {
@@ -149,24 +195,7 @@ const Orders = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    setDeleteOrderId(id);
-    setConfirmDelete(true);
-  };
 
-  const confirmDeleteOrder = async () => {
-    if (deleteOrderId) {
-      try {
-        await ordersService.delete(deleteOrderId);
-        setOrders(orders.filter(o => o.id.toString() !== deleteOrderId));
-        setDeleteOrderId(null);
-        setConfirmDelete(false);
-      } catch (error) {
-        console.error('Error deleting order:', error);
-        setError('Sipariş silinirken bir hata oluştu');
-      }
-    }
-  };
 
   const handleView = (order: Order) => {
     setViewOrder(order);
@@ -177,6 +206,15 @@ const Orders = () => {
     setSelectedOrder(order);
     setSelectedFactoryId('');
     setDeadline('');
+    setDescription('');
+    
+    // Object URL'leri temizle
+    selectedImages.forEach(img => {
+      URL.revokeObjectURL(img.objectUrl);
+    });
+    
+    setSelectedImages([]);
+    setUploadedImageUrls([]);
     setAssignFactoryModalOpen(true);
   };
 
@@ -188,7 +226,9 @@ const Orders = () => {
       await ordersService.assignFactory(
         selectedOrder.id.toString(), 
         selectedFactoryId as number, 
-        deadline
+        deadline,
+        description.trim() || undefined,
+        uploadedImageUrls.length > 0 ? uploadedImageUrls.map(img => img.url) : undefined
       );
       
       // Reload orders to get updated data
@@ -199,6 +239,15 @@ const Orders = () => {
       setSelectedOrder(null);
       setSelectedFactoryId('');
       setDeadline('');
+      setDescription('');
+      
+      // Object URL'leri temizle
+      selectedImages.forEach(img => {
+        URL.revokeObjectURL(img.objectUrl);
+      });
+      
+      setSelectedImages([]);
+      setUploadedImageUrls([]);
       setError(null);
       
       // Show success toast
@@ -246,7 +295,7 @@ const Orders = () => {
   const handleCancelOrder = async (orderId: number) => {
     setCancellingOrder(true);
     try {
-      await ordersService.cancel(orderId.toString());
+      await ordersService.updateStatus(orderId, OrderStatus.CANCELLED);
       await loadOrders();
       setError(null);
       
@@ -343,6 +392,13 @@ const Orders = () => {
       icon: <TrendingUpIcon />,
       color: '#10b981',
       trend: '+15%'
+    },
+    {
+      title: 'İptal Edildi',
+      value: orders.filter(o => o.status === OrderStatus.CANCELLED).length,
+      icon: <CancelIcon />,
+      color: '#ef4444',
+      trend: '-5%'
     }
   ];
 
@@ -355,6 +411,75 @@ const Orders = () => {
       </Box>
     );
   }
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const validFiles: Array<{ id: string; file: File; objectUrl: string }> = [];
+    
+    // Dosya boyutu kontrolü
+    files.forEach(file => {
+      if (file.size <= 5 * 1024 * 1024) { // 5MB limit
+        const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const objectUrl = URL.createObjectURL(file);
+        validFiles.push({ id: uniqueId, file: file, objectUrl: objectUrl });
+      } else {
+        toast.error(`${file.name} - Görsel boyutu 5MB'den büyük olamaz.`);
+      }
+    });
+    
+    if (validFiles.length === 0) return;
+    
+    // Yeni görselleri state'e ekle
+    setSelectedImages(prev => [...prev, ...validFiles]);
+    
+    // Otomatik upload başlat
+    setUploadingImages(true);
+    try {
+      const urls = await imageService.uploadMultipleImages(validFiles.map(f => f.file));
+      
+      // URL'leri ID'ler ile eşleştir
+      const newUploadedUrls = validFiles.map((fileData, index) => ({
+        id: fileData.id,
+        url: urls[index]
+      }));
+      
+      setUploadedImageUrls(prev => [...prev, ...newUploadedUrls]);
+      toast.success(`${validFiles.length} görsel başarıyla yüklendi!`);
+    } catch (error) {
+      console.error('Error uploading images:', error);
+      toast.error('Görseller yüklenirken hata oluştu');
+      
+      // Hata durumunda yüklenemeyen görselleri state'den kaldır ve object URL'leri temizle
+      validFiles.forEach(fileData => {
+        URL.revokeObjectURL(fileData.objectUrl);
+      });
+      setSelectedImages(prev => prev.filter(img => !validFiles.some(vf => vf.id === img.id)));
+    } finally {
+      setUploadingImages(false);
+    }
+  };
+
+  const removeImage = (idToRemove: string) => {
+    // Kaldırılacak image'ı bul
+    const imageToRemove = selectedImages.find(img => img.id === idToRemove);
+    
+    // Object URL'yi temizle
+    if (imageToRemove) {
+      URL.revokeObjectURL(imageToRemove.objectUrl);
+    }
+    
+    // Dosyayı kaldır
+    setSelectedImages(prev => {
+      const newImages = prev.filter(img => img.id !== idToRemove);
+      return newImages;
+    });
+    
+    // URL'leri de kaldır
+    setUploadedImageUrls(prev => {
+      const newUrls = prev.filter(img => img.id !== idToRemove);
+      return newUrls;
+    });
+  };
 
   return (
     <Box sx={{ 
@@ -443,7 +568,7 @@ const Orders = () => {
       {/* Action Bar */}
       <Card sx={{ mb: 3, border: '1px solid #e5e7eb', borderRadius: 2 }}>
         <CardContent sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}>
             <TextField
               placeholder="Sipariş ara..."
               value={searchTerm}
@@ -473,26 +598,6 @@ const Orders = () => {
                 },
               }}
             />
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              sx={{
-                backgroundColor: '#10b981',
-                borderRadius: 2,
-                px: 3,
-                py: 1.5,
-                fontWeight: 600,
-                textTransform: 'none',
-                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                '&:hover': {
-                  backgroundColor: '#059669',
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)',
-                },
-              }}
-            >
-              Yeni Sipariş
-            </Button>
           </Box>
         </CardContent>
       </Card>
@@ -537,7 +642,7 @@ const Orders = () => {
                         {searchTerm ? 'Arama sonucu bulunamadı' : 'Henüz sipariş eklenmemiş'}
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#9ca3af' }}>
-                        {searchTerm ? 'Farklı arama terimleri deneyin' : 'İlk siparişinizi eklemek için "Yeni Sipariş" butonuna tıklayın'}
+                        {searchTerm ? 'Farklı arama terimleri deneyin' : 'Henüz sipariş bulunmuyor'}
                       </Typography>
                   </Box>
                 </TableCell>
@@ -554,6 +659,7 @@ const Orders = () => {
                     <TableCell sx={{ py: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Avatar 
+                          src={order.brand?.logoUrl}
                           sx={{ 
                             backgroundColor: '#10b98120',
                             color: '#10b981',
@@ -616,52 +722,66 @@ const Orders = () => {
                             <VisibilityIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                        {userRole !== 'FACTORY_USER' && (
-                          <>
-                            {order.status === OrderStatus.IN_PRODUCTION && (
-                              <Tooltip title="Siparişi Tamamla">
-                                <IconButton 
-                                  size="small"
-                                  onClick={() => handleCompleteOrder(order.id)}
-                                  disabled={completingOrder}
-                                  sx={{ 
-                                    color: '#10b981',
-                                    '&:hover': { backgroundColor: '#f0fdf4', color: '#059669' }
-                                  }}
-                                >
-                                  {completingOrder ? (
-                                    <CircularProgress size={16} sx={{ color: '#10b981' }} />
-                                  ) : (
-                                    <CheckCircleIcon fontSize="small" />
-                                  )}
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            <Tooltip title="Fabrika Ata">
-                              <IconButton 
-                                size="small"
-                                onClick={() => handleAssignFactory(order)}
-                                sx={{ 
-                                  color: '#8b5cf6',
-                                  '&:hover': { backgroundColor: '#f3f4f6', color: '#7c3aed' }
-                                }}
-                              >
-                                <FactoryIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Sil">
-                              <IconButton 
-                                size="small"
-                                onClick={() => handleDelete(order.id.toString())}
-                                sx={{ 
-                                  color: '#ef4444',
-                                  '&:hover': { backgroundColor: '#fef2f2', color: '#dc2626' }
-                                }}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </>
+                        {/* Siparişi Tamamla - sadece FACTORY_USER ve fabrika ataması yapılmış durumlarda */}
+                        {userRole === 'FACTORY_USER' && (
+                          order.status === OrderStatus.IN_PRODUCTION ||
+                          order.status === OrderStatus.IN_WAREHOUSE ||
+                          order.status === OrderStatus.IN_TRANSIT
+                        ) && (
+                          <Tooltip title="Siparişi Tamamla">
+                            <IconButton 
+                              size="small"
+                              onClick={() => handleCompleteOrder(order.id)}
+                              disabled={completingOrder}
+                              sx={{ 
+                                color: '#10b981',
+                                '&:hover': { backgroundColor: '#f0fdf4', color: '#059669' }
+                              }}
+                            >
+                              {completingOrder ? (
+                                <CircularProgress size={16} sx={{ color: '#10b981' }} />
+                              ) : (
+                                <CheckCircleIcon fontSize="small" />
+                              )}
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        
+                        {/* Fabrika Ata - sadece SUPER_ADMIN ve PENDING durumunda */}
+                        {authService.canAssignFactory() && order.status === OrderStatus.PENDING && (
+                          <Tooltip title="Fabrika Ata">
+                            <IconButton 
+                              size="small"
+                              onClick={() => handleAssignFactory(order)}
+                              sx={{ 
+                                color: '#8b5cf6',
+                                '&:hover': { backgroundColor: '#f3f4f6', color: '#7c3aed' }
+                              }}
+                            >
+                              <FactoryIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        
+                        {/* İptal Et - sadece PENDING durumunda */}
+                        {order.status === OrderStatus.PENDING && (
+                          <Tooltip title="İptal Et">
+                            <IconButton 
+                              size="small"
+                              onClick={() => handleCancelOrder(order.id)}
+                              disabled={cancellingOrder}
+                              sx={{ 
+                                color: '#ef4444',
+                                '&:hover': { backgroundColor: '#fef2f2', color: '#dc2626' }
+                              }}
+                            >
+                              {cancellingOrder ? (
+                                <CircularProgress size={16} sx={{ color: '#ef4444' }} />
+                              ) : (
+                                <CancelIcon fontSize="small" />
+                              )}
+                            </IconButton>
+                          </Tooltip>
                         )}
                       </Box>
                   </TableCell>
@@ -673,34 +793,24 @@ const Orders = () => {
       </TableContainer>
       </Card>
 
-      {/* Floating Action Button for Mobile */}
-      <Fab
-        color="primary"
-        sx={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          backgroundColor: '#10b981',
-          '&:hover': { backgroundColor: '#059669' },
-          display: { xs: 'flex', md: 'none' }
-        }}
-      >
-        <AddIcon />
-      </Fab>
 
-      {/* Delete Confirmation Dialog */}
-      <ConfirmationDialog
-        open={confirmDelete}
-        onClose={() => setConfirmDelete(false)}
-        onConfirm={confirmDeleteOrder}
-        title="Sipariş Silme Onayı"
-        message="Bu siparişi silmek istediğinize emin misiniz?"
-      />
+
+
 
       {/* Factory Assignment Modal */}
       <Dialog 
         open={assignFactoryModalOpen} 
-        onClose={() => setAssignFactoryModalOpen(false)}
+        onClose={() => {
+          // Object URL'leri temizle
+          selectedImages.forEach(img => {
+            URL.revokeObjectURL(img.objectUrl);
+          });
+          
+          setAssignFactoryModalOpen(false);
+          setDescription('');
+          setSelectedImages([]); // Clear selected images on close
+          setUploadedImageUrls([]); // Clear uploaded URLs on close
+        }}
         maxWidth="sm"
         fullWidth
         PaperProps={{
@@ -805,7 +915,7 @@ const Orders = () => {
             </FormControl>
 
             <TextField
-              label="Deadline Tarihi"
+              label="Teslim edilmesi gereken tarih"
               type="date"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
@@ -829,11 +939,263 @@ const Orders = () => {
                 },
               }}
             />
+
+            {/* Modern Description Field */}
+            <Box sx={{ position: 'relative' }}>
+              <TextField
+                label="Fabrikaya Özel Talimatlar"
+                placeholder="Üretime dair özel notlar, renk tercihleri, kalite standartları veya dikkat edilmesi gereken hususları buraya yazabilirsiniz..."
+                value={description}
+                onChange={(e) => {
+                  if (e.target.value.length <= 1000) {
+                    setDescription(e.target.value);
+                  }
+                }}
+                multiline
+                rows={4}
+                fullWidth
+                variant="outlined"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 3,
+                    backgroundColor: '#fafbfc',
+                    transition: 'all 0.2s ease-in-out',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#e1e5e9',
+                      borderWidth: '1.5px',
+                    },
+                    '&:hover': {
+                      backgroundColor: '#f8f9fa',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#8b5cf6',
+                        borderWidth: '2px',
+                      },
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: '#ffffff',
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 8px 25px rgba(139, 92, 246, 0.15)',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#8b5cf6',
+                        borderWidth: '2px',
+                      },
+                    },
+                  },
+                  '& .MuiInputLabel-root': {
+                    color: '#6b7280',
+                    fontWeight: 500,
+                    '&.Mui-focused': {
+                      color: '#8b5cf6',
+                    },
+                  },
+                  '& .MuiInputBase-input': {
+                    fontSize: '0.95rem',
+                    lineHeight: '1.6',
+                    '&::placeholder': {
+                      color: '#9ca3af',
+                      opacity: 1,
+                    },
+                  },
+                }}
+              />
+              
+              {/* Character Counter */}
+              <Box sx={{ 
+                position: 'absolute', 
+                bottom: 8, 
+                right: 12, 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 1,
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                borderRadius: 1,
+                px: 1,
+                py: 0.5
+              }}>
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    color: description.length > 500 ? '#ef4444' : '#6b7280',
+                    fontWeight: 500,
+                    fontSize: '0.75rem'
+                  }}
+                >
+                  {description.length}/1000
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Image Upload Field */}
+            <Box>
+              <Typography variant="body2" sx={{ color: '#6b7280', mb: 1, fontWeight: 500 }}>
+                Üretim Görselleri (Opsiyonel)
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#9ca3af', mb: 2, display: 'block' }}>
+                Ürün çizimleri, referans görselleri, renk örnekleri gibi fabrikaya yardımcı olacak görselleri ekleyebilirsiniz
+              </Typography>
+              
+              <Box
+                sx={{
+                  border: `2px dashed ${selectedImages.length > 0 ? '#10b981' : '#d1d5db'}`,
+                  borderRadius: 2,
+                  p: 3,
+                  textAlign: 'center',
+                  backgroundColor: selectedImages.length > 0 ? '#f0fdf4' : '#f9fafb',
+                  transition: 'all 0.2s ease-in-out',
+                  '&:hover': {
+                    borderColor: '#8b5cf6',
+                    backgroundColor: selectedImages.length > 0 ? '#f0fdf4' : '#f8fafc',
+                  }
+                }}
+              >
+                <input
+                  type="file"
+                  multiple
+                  accept="image/png,image/jpeg,image/jpg"
+                  onChange={handleImageChange}
+                  style={{ display: 'none' }}
+                  id="image-upload"
+                />
+                <label htmlFor="image-upload" style={{ cursor: 'pointer' }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                    <CloudUploadIcon sx={{ fontSize: 32, color: selectedImages.length > 0 ? '#10b981' : '#6b7280' }} />
+                    <Typography variant="body2" sx={{ color: selectedImages.length > 0 ? '#10b981' : '#6b7280', fontWeight: 500 }}>
+                      {selectedImages.length > 0 ? `${selectedImages.length} görsel seçildi` : 'Görsel Seç veya Sürükle'}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#9ca3af' }}>
+                      PNG, JPG (max 5MB her görsel)
+                    </Typography>
+                  </Box>
+                </label>
+              </Box>
+
+              {/* Selected Images Preview */}
+              {selectedImages.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="body2" sx={{ color: '#6b7280', mb: 1, fontWeight: 500 }}>
+                    Seçilen Görseller:
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {selectedImages.map((imageData) => {
+                      const isUploaded = uploadedImageUrls.some(uploaded => uploaded.id === imageData.id);
+                      const uploadedData = uploadedImageUrls.find(uploaded => uploaded.id === imageData.id);
+                      
+                      return (
+                        <Box
+                          key={imageData.id}
+                          sx={{
+                            position: 'relative',
+                            width: 80,
+                            height: 80,
+                            borderRadius: 1,
+                            overflow: 'hidden',
+                            border: '2px solid #e5e7eb'
+                          }}
+                        >
+                          <img
+                            src={imageData.objectUrl}
+                            alt={`Görsel ${imageData.file.name}`}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover'
+                            }}
+                          />
+                          <IconButton
+                            size="small"
+                            onClick={() => removeImage(imageData.id)}
+                            sx={{
+                              position: 'absolute',
+                              top: 2,
+                              right: 2,
+                              backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                              color: 'white',
+                              '&:hover': {
+                                backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                              }
+                            }}
+                          >
+                            <CloseIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                          
+                          {/* Upload Status Indicator */}
+                          {isUploaded ? (
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                top: 2,
+                                left: 2,
+                                backgroundColor: '#10b981',
+                                borderRadius: '50%',
+                                width: 20,
+                                height: 20,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              <CheckCircleIcon sx={{ color: 'white', fontSize: 14 }} />
+                            </Box>
+                          ) : (
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                top: 2,
+                                left: 2,
+                                backgroundColor: '#f59e0b',
+                                borderRadius: '50%',
+                                width: 20,
+                                height: 20,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              <CircularProgress size={14} sx={{ color: 'white' }} />
+                            </Box>
+                          )}
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                  
+                  {/* Upload Status Summary */}
+                  {uploadedImageUrls.length > 0 && (
+                    <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <CheckCircleIcon sx={{ color: '#10b981', fontSize: 20 }} />
+                      <Typography variant="body2" sx={{ color: '#10b981', fontWeight: 500 }}>
+                        {uploadedImageUrls.length} görsel yüklendi
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  {/* Uploading Status */}
+                  {uploadingImages && (
+                    <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <CircularProgress size={16} />
+                      <Typography variant="body2" sx={{ color: '#f59e0b', fontWeight: 500 }}>
+                        Görseller yükleniyor...
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              )}
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 3, borderTop: '1px solid #e5e7eb' }}>
           <Button 
-            onClick={() => setAssignFactoryModalOpen(false)}
+            onClick={() => {
+              // Object URL'leri temizle
+              selectedImages.forEach(img => {
+                URL.revokeObjectURL(img.objectUrl);
+              });
+              
+              setAssignFactoryModalOpen(false);
+              setDescription('');
+              setSelectedImages([]); // Clear selected images on cancel
+              setUploadedImageUrls([]); // Clear uploaded URLs on cancel
+            }}
             sx={{ 
               color: '#6b7280',
               fontWeight: 600,
@@ -1000,30 +1362,70 @@ const Orders = () => {
               )}
               
               {/* Order Header */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, backgroundColor: '#f9fafb', borderRadius: 2 }}>
-                <Avatar 
-                  sx={{ 
-                    backgroundColor: '#10b98120',
-                    color: '#10b981',
-                    width: 56,
-                    height: 56,
-                    fontWeight: 600,
-                    fontSize: '1.5rem'
-                  }}
-                >
-                  {viewOrder.brand?.name?.charAt(0).toUpperCase() || '#'}
-                </Avatar>
-                <Box sx={{ flexGrow: 1 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937', mb: 0.5 }}>
-                    Sipariş #{viewOrder.id}
-                  </Typography>
-                  <Typography variant="body1" sx={{ color: '#6b7280', mb: 1 }}>
-                    {viewOrder.brand?.name || 'Bilinmeyen Müşteri'}
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ p: 3, backgroundColor: '#f9fafb', borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  {/* Sol Taraf - Logo ve Müşteri Bilgileri */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                    {/* Brand Logo - Circle Frame */}
+                    <Box sx={{ 
+                      width: 80, 
+                      height: 80, 
+                      borderRadius: '50%', 
+                      border: '3px solid #e5e7eb',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: 'white'
+                    }}>
+                      {viewOrder.brand?.logoUrl ? (
+                        <img 
+                          src={viewOrder.brand.logoUrl} 
+                          alt={`${viewOrder.brand.name} logo`}
+                          style={{ 
+                            width: '100%', 
+                            height: '100%', 
+                            objectFit: 'cover'
+                          }} 
+                        />
+                      ) : (
+                        <Typography 
+                          sx={{ 
+                            color: '#10b981',
+                            fontWeight: 700,
+                            fontSize: '2rem'
+                          }}
+                        >
+                          {viewOrder.brand?.name?.charAt(0).toUpperCase() || '#'}
+                        </Typography>
+                      )}
+                    </Box>
+                    
+                    {/* Müşteri Bilgileri */}
+                    <Box>
+                      {/* Müşteri Adı - Ana Başlık */}
+                      <Typography variant="h5" sx={{ fontWeight: 600, color: '#1f2937', mb: 2 }}>
+                        {viewOrder.brand?.name || 'Bilinmeyen Müşteri'}
+                      </Typography>
+                      
+                      {/* Telefon */}
+                      {viewOrder.brand?.contactPhone && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <Typography variant="body1" sx={{ color: '#6b7280', minWidth: 80 }}>📞 Telefon:</Typography>
+                          <Typography variant="body1" sx={{ color: '#374151', fontWeight: 500 }}>
+                            {viewOrder.brand.contactPhone}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  </Box>
+                  
+                  {/* Sağ Taraf - Status ve Teslim Tarihi */}
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                    {/* Status */}
                     <Chip 
                       label={getStatusText(viewOrder.status)} 
-                      size="small" 
+                      size="medium" 
                       sx={{ 
                         backgroundColor: `${getStatusColor(viewOrder.status)}20`,
                         color: getStatusColor(viewOrder.status),
@@ -1031,6 +1433,20 @@ const Orders = () => {
                         borderRadius: 2
                       }} 
                     />
+                    
+                    {/* Teslim Tarihi */}
+                    {viewOrder.deadline && (
+                      <Box sx={{ textAlign: 'right' }}>
+                        <Typography variant="body2" sx={{ color: '#6b7280', mb: 0.5 }}>
+                          Teslim Tarihi:
+                        </Typography>
+                        <Typography variant="body1" sx={{ color: '#374151', fontWeight: 500 }}>
+                          {new Date(viewOrder.deadline).toLocaleDateString('tr-TR')}
+                        </Typography>
+                      </Box>
+                    )}
+                    
+                    {/* Toplam Fiyat */}
                     {userRole !== 'FACTORY_USER' && (
                       <Typography variant="h6" sx={{ color: '#059669', fontWeight: 600 }}>
                         ₺{viewOrder.totalPrice?.toFixed(2) || '0.00'}
@@ -1042,76 +1458,67 @@ const Orders = () => {
 
               {/* Order Details */}
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 3 }}>
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151', mb: 2 }}>
-                    Sipariş Bilgileri
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" sx={{ color: '#6b7280' }}>ID:</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 500, color: '#374151' }}>#{viewOrder.id}</Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" sx={{ color: '#6b7280' }}>Durum:</Typography>
-                      <Chip 
-                        label={getStatusText(viewOrder.status)} 
-                        size="small" 
-                        sx={{ 
-                          backgroundColor: `${getStatusColor(viewOrder.status)}20`,
-                          color: getStatusColor(viewOrder.status),
-                          fontWeight: 600,
-                          borderRadius: 1,
-                          height: 20,
-                          fontSize: '0.75rem'
-                        }} 
-                      />
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" sx={{ color: '#6b7280' }}>Oluşturma Tarihi:</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 500, color: '#374151' }}>
-                        {new Date(viewOrder.createdAt).toLocaleDateString('tr-TR')}
-                      </Typography>
-                    </Box>
-                    {userRole !== 'FACTORY_USER' && (
+                {/* Atanan Kullanıcı Bilgileri - Ayrı Section */}
+                {viewOrder.brand?.assignedUser && (
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: '#10b981', mb: 2 }}>
+                      Atanan Kullanıcı
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography variant="body2" sx={{ color: '#6b7280' }}>Toplam Fiyat:</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#059669' }}>
-                          ₺{viewOrder.totalPrice?.toFixed(2) || '0.00'}
+                        <Typography variant="body2" sx={{ color: '#6b7280' }}>Ad:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, color: '#10b981' }}>
+                          {viewOrder.brand.assignedUser.name}
                         </Typography>
                       </Box>
-                    )}
-                  </Box>
-                </Box>
-
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151', mb: 2 }}>
-                    Müşteri Bilgileri
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" sx={{ color: '#6b7280' }}>Müşteri Adı:</Typography>
-                                              <Typography variant="body2" sx={{ fontWeight: 500, color: '#374151' }}>
-                          {viewOrder.brand?.name || 'Bilinmeyen Müşteri'}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: '#6b7280' }}>E-posta:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, color: '#374151' }}>
+                          {viewOrder.brand.assignedUser.email}
                         </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: '#6b7280' }}>Telefon:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, color: '#374151' }}>
+                          {viewOrder.brand.assignedUser.phone}
+                        </Typography>
+                      </Box>
                     </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                              <Typography variant="body2" sx={{ color: '#6b7280' }}>Müşteri ID:</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 500, color: '#374151' }}>
-                        #{viewOrder.brand?.id || 'N/A'}
-                      </Typography>
-                    </Box>
-                    {viewOrder.factory && (
-                      <>
+                  </Box>
+                )}
+
+                {/* Fabrika Bilgileri - Ayrı Section */}
+                {viewOrder.factory && (
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: '#8b5cf6', mb: 2 }}>
+                      Fabrika Bilgileri
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" sx={{ color: '#6b7280' }}>Ad:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, color: '#8b5cf6' }}>
+                          {viewOrder.factory.name}
+                        </Typography>
+                      </Box>
+                      {viewOrder.factory.phone && (
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="body2" sx={{ color: '#6b7280' }}>Atanan Fabrika:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 500, color: '#8b5cf6' }}>
-                            {viewOrder.factory.name}
+                          <Typography variant="body2" sx={{ color: '#6b7280' }}>Telefon:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 500, color: '#374151' }}>
+                            {viewOrder.factory.phone}
                           </Typography>
                         </Box>
-                      </>
-                    )}
+                      )}
+                      {viewOrder.factory.address && (
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="body2" sx={{ color: '#6b7280' }}>Adres:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 500, color: '#374151' }}>
+                            {viewOrder.factory.address}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
                   </Box>
-                </Box>
+                )}
               </Box>
 
               {/* Order Items */}
@@ -1168,24 +1575,110 @@ const Orders = () => {
                         <Box sx={{ textAlign: 'right' }}>
                           {userRole !== 'FACTORY_USER' && (
                             <Typography variant="h6" sx={{ color: '#059669', fontWeight: 600 }}>
-                              ₺{item.lineTotal?.toFixed(2) || (item.quantity * (item.unitPrice || 0)).toFixed(2)}
+                              ₺{item.lineTotalWithTax?.toFixed(2) || item.lineTotal?.toFixed(2) || (item.quantity * (item.unitPrice || 0)).toFixed(2)}
                             </Typography>
                           )}
-                          {item.status && (
-                            <Chip 
-                              label={item.status} 
-                              size="small" 
-                              sx={{ 
-                                backgroundColor: '#e5e7eb',
-                                color: '#6b7280',
-                                fontWeight: 500,
-                                borderRadius: 1,
-                                mt: 0.5,
-                                fontSize: '0.75rem',
-                                height: 20
-                              }} 
-                            />
+                          {item.taxRate && (
+                            <Typography variant="caption" sx={{ color: '#6b7280', display: 'block', mt: 0.5 }}>
+                              KDV: %{item.taxRate}
+                            </Typography>
                           )}
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {/* Description */}
+              {viewOrder.description && (
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151', mb: 2 }}>
+                    Üretim Talimatları
+                  </Typography>
+                  <Box sx={{ 
+                    p: 3, 
+                    backgroundColor: '#f8fafc', 
+                    borderRadius: 2,
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <Typography variant="body1" sx={{ color: '#374151', lineHeight: 1.6 }}>
+                      {viewOrder.description}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+
+              {/* Image URLs */}
+              {viewOrder.imageUrls && viewOrder.imageUrls.length > 0 && (
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#374151', mb: 2 }}>
+                    Üretim Görselleri ({viewOrder.imageUrls.length} adet)
+                  </Typography>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    flexWrap: 'wrap', 
+                    gap: 2 
+                  }}>
+                    {viewOrder.imageUrls.map((imageUrl, index) => (
+                      <Box
+                        key={index}
+                        sx={{
+                          position: 'relative',
+                          width: 120,
+                          height: 120,
+                          borderRadius: 2,
+                          overflow: 'hidden',
+                          border: '2px solid #e5e7eb',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease-in-out',
+                          '&:hover': {
+                            transform: 'scale(1.05)',
+                            boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15)',
+                          }
+                        }}
+                        onClick={() => window.open(imageUrl, '_blank')}
+                      >
+                        <img
+                          src={imageUrl}
+                          alt={`Üretim Görseli ${index + 1}`}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover'
+                          }}
+                        />
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                            opacity: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'opacity 0.2s ease-in-out',
+                            '&:hover': {
+                              opacity: 1,
+                            }
+                          }}
+                        >
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              color: 'white', 
+                              fontWeight: 600,
+                              backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                              px: 1,
+                              py: 0.5,
+                              borderRadius: 1
+                            }}
+                          >
+                            Büyüt
+                          </Typography>
                         </Box>
                       </Box>
                     ))}
@@ -1380,8 +1873,12 @@ const Orders = () => {
                     </Button>
                   )}
                   
-                  {/* Tamamlandı butonu - sadece in_production durumunda göster */}
-                  {viewOrder.status?.toLowerCase() === 'in_production' && (
+                  {/* Tamamlandı butonu - sadece FACTORY_USER ve fabrika ataması yapılmış durumlarda göster */}
+                  {userRole === 'FACTORY_USER' && (
+                    viewOrder.status === OrderStatus.IN_PRODUCTION ||
+                    viewOrder.status === OrderStatus.IN_WAREHOUSE ||
+                    viewOrder.status === OrderStatus.IN_TRANSIT
+                  ) && (
                     <Button 
                       onClick={() => {
                         setViewOrderModalOpen(false);
@@ -1415,7 +1912,7 @@ const Orders = () => {
                 </>
               )}
               
-              {userRole !== 'FACTORY_USER' && (
+              {authService.canAssignFactory() && viewOrder.status === OrderStatus.PENDING && (
                 <Button 
                   onClick={() => {
                     setViewOrderModalOpen(false);
@@ -1450,3 +1947,4 @@ const Orders = () => {
 };
 
 export default Orders;
+

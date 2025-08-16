@@ -3,9 +3,10 @@ export interface Offer {
   brandId: number;
   brandName?: string;
   createdAt: string;
-  status: 'OFFER_SENT' | 'OFFER_ACCEPTED' | 'OFFER_REJECTED' | 'ACCEPTED' | 'REJECTED';
+  status: 'DRAFT' | 'OFFER_SENT' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
   totalPrice: number;
   validUntil: string;
+  dealerId?: number; // Dealer ID (opsiyonel)
   items: {
     productId: number;
     quantity: number;

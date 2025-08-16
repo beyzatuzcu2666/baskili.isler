@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { factoriesService } from '../services/factories';
-import { Factory } from '../types/factory';
+import { Factory, CreateFactoryRequest, UpdateFactoryRequest } from '../types/factory';
 import { 
   Button, 
   Box, 
@@ -35,7 +35,6 @@ import {
   Add as AddIcon,
   Factory as FactoryIcon,
   LocationOn as LocationIcon,
-  Phone as PhoneIcon,
   TrendingUp as TrendingUpIcon,
   Visibility as VisibilityIcon,
   Build as BuildIcon
@@ -82,7 +81,7 @@ const Factories: React.FC = () => {
     // Text search filter
     const matchesSearch = factory.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       factory.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      factory.phoneNumber.includes(searchTerm);
+      (factory.factoryNumber && factory.factoryNumber.toLowerCase().includes(searchTerm.toLowerCase()));
     
     // Status filter
     const matchesStatus = statusFilter === 'all' || 
@@ -92,7 +91,7 @@ const Factories: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const handleAddFactory = async (data: Omit<Factory, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const handleAddFactory = async (data: CreateFactoryRequest) => {
     try {
       await factoriesService.create(data);
       const updatedFactories = await factoriesService.getAll();
@@ -104,7 +103,7 @@ const Factories: React.FC = () => {
     }
   };
 
-  const handleEditFactory = async (factoryId: number, data: Partial<Omit<Factory, 'id' | 'createdAt' | 'updatedAt'>>) => {
+  const handleEditFactory = async (factoryId: number, data: UpdateFactoryRequest) => {
     try {
       await factoriesService.update(factoryId, data);
       const updatedFactories = await factoriesService.getAll();
@@ -368,6 +367,9 @@ const Factories: React.FC = () => {
                   Fabrika
                 </TableCell>
                 <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
+                  Fabrika No
+                </TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
                   İletişim Bilgileri
                 </TableCell>
                 <TableCell sx={{ fontWeight: 600, color: '#374151', py: 2 }}>
@@ -381,7 +383,7 @@ const Factories: React.FC = () => {
             <TableBody>
               {filteredFactories.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <FactoryIcon sx={{ fontSize: 48, color: '#9ca3af', mb: 2 }} />
                       <Typography variant="h6" sx={{ color: '#6b7280', mb: 1 }}>
@@ -426,6 +428,11 @@ const Factories: React.FC = () => {
                       </Box>
                     </TableCell>
                     <TableCell sx={{ py: 2 }}>
+                      <Typography variant="body2" sx={{ color: '#374151' }}>
+                        {factory.factoryNumber}
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ py: 2 }}>
                       <Stack spacing={1}>
                         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
                           <LocationIcon sx={{ fontSize: 16, color: '#6b7280', mt: 0.5 }} />
@@ -441,12 +448,6 @@ const Factories: React.FC = () => {
                             }}
                           >
                             {factory.address}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <PhoneIcon sx={{ fontSize: 16, color: '#6b7280' }} />
-                          <Typography variant="body2" sx={{ color: '#374151' }}>
-                            {factory.phoneNumber}
                           </Typography>
                         </Box>
                       </Stack>
@@ -533,19 +534,21 @@ const Factories: React.FC = () => {
       <FactoryFormModal
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSubmit={handleAddFactory}
-        title="Fabrika Ekle"
+        onSubmit={(data) => handleAddFactory(data as CreateFactoryRequest)}
+        title="Yeni Fabrika Ekle"
         isUpdate={false}
       />
+
       <FactoryFormModal
         open={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setSelectedFactory(null);
+        onClose={() => setIsEditModalOpen(false)}
+        onSubmit={(data) => {
+          if (selectedFactory) {
+            handleEditFactory(selectedFactory.id, data as UpdateFactoryRequest);
+          }
         }}
-        onSubmit={(data) => selectedFactory && handleEditFactory(selectedFactory.id, data)}
         initialData={selectedFactory || undefined}
-        title="Fabrika Güncelle"
+        title="Fabrika Düzenle"
         isUpdate={true}
       />
       <ConfirmationDialog

@@ -4,6 +4,7 @@ export interface User {
   email: string;
   phoneNumber: string;
   role: UserRole;
+  dealerId?: number;
 }
 
 export enum UserRole {
