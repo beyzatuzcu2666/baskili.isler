@@ -111,7 +111,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }: SidebarProps) => {
       icon: <NotificationsIcon />,
       color: '#f59e0b',
       description: 'Sistem bildirimleri',
-      requiredRoles: ['SUPER_ADMIN', 'DEALER_ADMIN', 'FACTORY_USER']
+      requiredRoles: ['SUPER_ADMIN', 'FACTORY_USER']
     },
   ];
 

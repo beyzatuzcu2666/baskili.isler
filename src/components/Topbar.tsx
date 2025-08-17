@@ -84,8 +84,14 @@ const Topbar = ({ drawerWidth, isCollapsed, onToggleSidebar }: TopbarProps) => {
 
 
 
-    // Load notification count on mount
+    // Load notification count on mount - Sadece bildirimleri görebilen kullanıcılar için
     useEffect(() => {
+        // Sadece bildirimleri görebilen kullanıcılar için count yükle
+        if (!authService.canViewNotifications()) {
+            setUnreadCount(0);
+            return;
+        }
+
         const loadNotificationCount = async () => {
             try {
                 const count = await notificationsService.getUnreadCount();
@@ -184,26 +190,28 @@ const Topbar = ({ drawerWidth, isCollapsed, onToggleSidebar }: TopbarProps) => {
                         </IconButton>
                     </Tooltip>
 
-                    {/* Bildirimler */}
-                    <Tooltip title="Bildirimler">
-                        <IconButton
-                            onClick={handleNotificationClick}
-                            sx={{
-                                color: '#64748b',
-                                backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                                borderRadius: '12px',
-                                '&:hover': { 
-                                    backgroundColor: 'rgba(255, 255, 255, 1)',
-                                    transform: 'scale(1.05)',
-                                },
-                                transition: 'all 0.2s ease',
-                            }}
-                        >
-                            <Badge badgeContent={unreadCount} color="error">
-                                <NotificationsIcon />
-                            </Badge>
-                        </IconButton>
-                    </Tooltip>
+                    {/* Bildirimler - Sadece SUPER_ADMIN ve FACTORY_USER için */}
+                    {authService.canViewNotifications() && (
+                        <Tooltip title="Bildirimler">
+                            <IconButton
+                                onClick={handleNotificationClick}
+                                sx={{
+                                    color: '#64748b',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                    borderRadius: '12px',
+                                    '&:hover': { 
+                                        backgroundColor: 'rgba(255, 255, 255, 1)',
+                                        transform: 'scale(1.05)',
+                                    },
+                                    transition: 'all 0.2s ease',
+                                }}
+                            >
+                                <Badge badgeContent={unreadCount} color="error">
+                                    <NotificationsIcon />
+                                </Badge>
+                            </IconButton>
+                        </Tooltip>
+                    )}
 
                     {/* Profil */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 1 }}>
@@ -248,12 +256,14 @@ const Topbar = ({ drawerWidth, isCollapsed, onToggleSidebar }: TopbarProps) => {
                 </Box>
             </Toolbar>
 
-            {/* Notification Panel */}
-            <NotificationPanel
-                anchorEl={notificationAnchor}
-                open={Boolean(notificationAnchor)}
-                onClose={handleClose}
-            />
+            {/* Notification Panel - Sadece bildirimleri görebilen kullanıcılar için */}
+            {authService.canViewNotifications() && (
+                <NotificationPanel
+                    anchorEl={notificationAnchor}
+                    open={Boolean(notificationAnchor)}
+                    onClose={handleClose}
+                />
+            )}
 
             {/* Profile Modal */}
             <ProfileModal
