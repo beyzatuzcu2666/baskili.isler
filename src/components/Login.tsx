@@ -540,15 +540,6 @@ const Login = () => {
                     mt: 3,
                   }}
                 >
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: '#64748b',
-                      fontSize: '0.875rem',
-                    }}
-                  >
-                    Beni hatırla
-                  </Typography>
                   <button
                     type="button"
                     style={{
