@@ -615,7 +615,7 @@ const Login = () => {
           ) : (
             <Box sx={{ py: 1 }}>
               <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>
-                Email adresinizi girin, size şifre sıfırlama linki göndereceğiz.
+                Lütfen mail adresinizi girin, size şifre sıfırlama linki göndereceğiz.
               </Typography>
               
               {forgotPasswordError && (
