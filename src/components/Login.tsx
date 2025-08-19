@@ -561,7 +561,7 @@ const Login = () => {
                       e.currentTarget.style.color = '#f97316';
                     }}
                   >
-                    Şifremi unuttum?
+                    Şifreni mi unuttun?
                   </button>
           </Box>
               </form>
