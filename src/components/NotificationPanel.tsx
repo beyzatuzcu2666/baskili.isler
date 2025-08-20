@@ -175,7 +175,17 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ anchorEl, open, o
               </IconButton>
             </Tooltip>
             <Tooltip title="Tümünü Okundu İşaretle">
-              <IconButton size="small" onClick={handleMarkAllAsRead}>
+              <IconButton 
+                size="small" 
+                onClick={handleMarkAllAsRead}
+                disabled={unreadCount === 0}
+                sx={{
+                  opacity: unreadCount === 0 ? 0.5 : 1,
+                  '&:hover': {
+                    opacity: unreadCount === 0 ? 0.5 : 1,
+                  }
+                }}
+              >
                 <MarkAllReadIcon />
               </IconButton>
             </Tooltip>

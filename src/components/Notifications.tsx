@@ -300,7 +300,17 @@ const Notifications: React.FC = () => {
                 </IconButton>
               </Tooltip>
               <Tooltip title="Tümünü Okundu İşaretle">
-                <IconButton size="small" onClick={handleMarkAllAsRead}>
+                <IconButton 
+                  size="small" 
+                  onClick={handleMarkAllAsRead}
+                  disabled={stats.unread === 0}
+                  sx={{
+                    opacity: stats.unread === 0 ? 0.5 : 1,
+                    '&:hover': {
+                      opacity: stats.unread === 0 ? 0.5 : 1,
+                    }
+                  }}
+                >
                   <MarkAllReadIcon />
                 </IconButton>
               </Tooltip>
