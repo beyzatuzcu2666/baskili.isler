@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { Box, useTheme, useMediaQuery } from '@mui/material';
+import { setLogoutCallback } from './services/http';
 import Login from './components/Login';
 import ResetPassword from './components/ResetPassword';
 import Products from './components/Products';
@@ -31,10 +32,18 @@ const COLLAPSED_DRAWER_WIDTH = 80;
 const Layout = () => {
   const theme = useTheme();
   const isMobileQuery = useMediaQuery(theme.breakpoints.down('md'));
+  const navigate = useNavigate();
   
   // Debounced mobile state
   const [isMobile, setIsMobile] = useState(isMobileQuery);
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Logout callback'i ayarla
+  useEffect(() => {
+    setLogoutCallback(() => {
+      navigate('/login');
+    });
+  }, [navigate]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {

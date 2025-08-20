@@ -3,11 +3,74 @@ import { toast } from 'react-toastify';
 
 const BASE_URL = 'https://baskili-isler-backend.onrender.com';
 
+// Global logout callback
+let logoutCallback: (() => void) | null = null;
+
+// Logout callback'i ayarlama fonksiyonu
+export const setLogoutCallback = (callback: () => void) => {
+  logoutCallback = callback;
+};
+
+// Backend'den gelen hata mesajlarını parse eden fonksiyon
+const parseErrorMessage = (errorData: any): string => {
+  // Eğer errorData bir string ise direkt döndür
+  if (typeof errorData === 'string') {
+    return errorData;
+  }
+  
+  // Eğer errorData bir obje ise farklı formatları kontrol et
+  if (typeof errorData === 'object' && errorData !== null) {
+    // message alanı varsa onu kullan
+    if (errorData.message) {
+      return errorData.message;
+    }
+    
+    // error alanı varsa onu kullan
+    if (errorData.error) {
+      return errorData.error;
+    }
+    
+    // detail alanı varsa onu kullan (Django REST framework formatı)
+    if (errorData.detail) {
+      return errorData.detail;
+    }
+    
+    // validationErrors varsa ilk hatayı al
+    if (errorData.validationErrors && Array.isArray(errorData.validationErrors) && errorData.validationErrors.length > 0) {
+      return errorData.validationErrors[0];
+    }
+    
+    // errors alanı varsa (array formatı)
+    if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+      return errorData.errors[0];
+    }
+    
+    // Eğer obje içinde başka string değerler varsa onları birleştir
+    const stringValues = Object.values(errorData)
+      .filter(value => typeof value === 'string')
+      .join(', ');
+    
+    if (stringValues) {
+      return stringValues;
+    }
+  }
+  
+  // Hiçbir format bulunamazsa varsayılan mesaj döndür
+  return '';
+};
+
 // 401 hatası kontrolü ve logout işlemi
 const handleUnauthorized = () => {
   authService.logout();
   toast.error('Oturum süreniz doldu. Lütfen tekrar giriş yapın.');
-  window.location.href = '/login';
+  
+  // Eğer logout callback varsa onu kullan, yoksa fallback
+  if (logoutCallback) {
+    logoutCallback();
+  } else {
+    // Fallback olarak window.location.href kullan
+    window.location.href = '/login';
+  }
 };
 
 export const http = {
@@ -32,7 +95,8 @@ export const http = {
           throw new Error('Unauthorized');
         }
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || 'Unknown error'}`);
+        const errorMessage = parseErrorMessage(errorData);
+        throw new Error(errorMessage || 'Veri yüklenirken bir hata oluştu');
       }
       
       return await response.json();
@@ -40,7 +104,7 @@ export const http = {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error('Network error: Failed to fetch data. Please check your internet connection.');
+      throw new Error('İnternet bağlantınızı kontrol edin ve tekrar deneyin.');
     }
   },
 
@@ -74,7 +138,8 @@ export const http = {
         // Login endpoint'i için 401 hatası durumunda sayfa yenileme
         if (response.status === 401 && endpoint === '/auth/login') {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || 'Email veya şifre hatalı');
+          const errorMessage = parseErrorMessage(errorData);
+          throw new Error(errorMessage || 'Email veya şifre hatalı');
         }
         
         if (response.status === 401) {
@@ -82,7 +147,8 @@ export const http = {
           throw new Error('Unauthorized');
         }
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || 'Unknown error'}`);
+        const errorMessage = parseErrorMessage(errorData);
+        throw new Error(errorMessage || 'İşlem yapılırken bir hata oluştu');
       }
       
       // HTTP 204 (No Content) response'ları için özel handling
@@ -101,7 +167,7 @@ export const http = {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error('Network error: Failed to send POST request. Please check your internet connection.');
+      throw new Error('İnternet bağlantınızı kontrol edin ve tekrar deneyin.');
     }
   },
 
@@ -133,14 +199,15 @@ export const http = {
           throw new Error('Unauthorized');
         }
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || 'Unknown error'}`);
+        const errorMessage = parseErrorMessage(errorData);
+        throw new Error(errorMessage || 'Güncelleme yapılırken bir hata oluştu');
       }
       return await response.json();
     } catch (error) {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error('Network error: Failed to send PATCH request. Please check your internet connection.');
+      throw new Error('İnternet bağlantınızı kontrol edin ve tekrar deneyin.');
     }
   },
 
@@ -167,7 +234,8 @@ export const http = {
           throw new Error('Unauthorized');
         }
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || 'Unknown error'}`);
+        const errorMessage = parseErrorMessage(errorData);
+        throw new Error(errorMessage || 'Veri güncellenirken bir hata oluştu');
       }
       
       return await response.json();
@@ -175,7 +243,7 @@ export const http = {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error('Network error: Failed to send PUT request. Please check your internet connection.');
+      throw new Error('İnternet bağlantınızı kontrol edin ve tekrar deneyin.');
     }
   },
 
@@ -200,13 +268,14 @@ export const http = {
           throw new Error('Unauthorized');
         }
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(`HTTP error! status: ${response.status} - ${errorData.message || 'Unknown error'}`);
+        const errorMessage = parseErrorMessage(errorData);
+        throw new Error(errorMessage || 'Silme işlemi yapılırken bir hata oluştu');
       }
     } catch (error) {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error('Network error: Failed to delete resource. Please check your internet connection.');
+      throw new Error('İnternet bağlantınızı kontrol edin ve tekrar deneyin.');
     }
   }
 };

@@ -289,11 +289,28 @@ const Dealers: React.FC = () => {
                   <TableCell>{dealer?.admin?.name || 'Admin adı yok'}</TableCell>
                   <TableCell>{dealer?.admin?.email || 'Admin e-posta yok'}</TableCell>
                   <TableCell align="right">
-                    <IconButton onClick={() => navigate(`/dealers/${dealer.id}`)} color="primary">
-                      <VisibilityIcon />
-                    </IconButton>
-                    <IconButton onClick={() => handleOpenEditModal(dealer)}><EditIcon /></IconButton>
-                    <IconButton color="error" onClick={() => setDeleteDealerId(dealer.id)}><DeleteIcon /></IconButton>
+                    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                      <IconButton 
+                        onClick={() => navigate(`/dealers/${dealer.id}`)} 
+                        color="primary"
+                        size="small"
+                      >
+                        <VisibilityIcon />
+                      </IconButton>
+                      <IconButton 
+                        onClick={() => handleOpenEditModal(dealer)}
+                        size="small"
+                      >
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton 
+                        color="error" 
+                        onClick={() => setDeleteDealerId(dealer.id)}
+                        size="small"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))}

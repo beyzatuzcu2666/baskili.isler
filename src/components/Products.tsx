@@ -90,7 +90,7 @@ const Products = () => {
     description: '',
     unit: Unit.ADET,
     unitPrice: 0,
-    taxRate: 20.00
+    taxRate: 20
   });
 
   useEffect(() => {
@@ -268,7 +268,7 @@ const Products = () => {
       description: '',
       unit: Unit.ADET,
       unitPrice: 0,
-      taxRate: 20.00
+      taxRate: 20
     });
     setSelectedProduct(null);
   };
@@ -285,7 +285,7 @@ const Products = () => {
       description: product.description || '',
       unit: product.unit,
       unitPrice: product.unitPrice,
-      taxRate: product.taxRate
+      taxRate: product.taxRate || 20
     });
     setOpenDialog(true);
   };
@@ -647,12 +647,12 @@ const Products = () => {
                 inputProps={{ min: 0, step: 0.01 }}
               />
 
-          <TextField
+                      <TextField
                 label="KDV Oranı (%)"
                 type="number"
                 value={formData.taxRate}
-                onChange={(e) => setFormData({ ...formData, taxRate: parseFloat(e.target.value) || 0 })}
-            fullWidth
+                onChange={(e) => setFormData({ ...formData, taxRate: parseFloat(e.target.value) || 20 })}
+                fullWidth
                 inputProps={{ min: 0, max: 100, step: 0.01 }}
           />
             </Box>

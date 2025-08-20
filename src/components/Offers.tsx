@@ -1556,6 +1556,9 @@ const Offers = () => {
                 InputLabelProps={{
                   shrink: true,
                 }}
+                inputProps={{
+                  min: new Date().toISOString().split('T')[0]
+                }}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: 2,
@@ -2295,6 +2298,9 @@ const Offers = () => {
                })}
                InputLabelProps={{
                  shrink: true,
+               }}
+               inputProps={{
+                 min: new Date().toISOString().split('T')[0]
                }}
                sx={{
                  '& .MuiOutlinedInput-root': {

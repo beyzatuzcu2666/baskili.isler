@@ -75,7 +75,8 @@ const Topbar = ({ drawerWidth, isCollapsed, onToggleSidebar }: TopbarProps) => {
     const handleLogout = async () => {
         try {
             authService.clearToken();
-            navigate('/login');
+            // Sayfa yenilenmeden login'e yönlendir
+            navigate('/login', { replace: true });
         } catch (error) {
             console.error('Çıkış yaparken bir hata oluştu:', error);
         }
