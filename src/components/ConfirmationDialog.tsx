@@ -45,7 +45,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
           <CloseIcon />
         </IconButton>
       </Box>
-      <DialogContent>
+      <DialogContent sx={{ padding: '0px 38px 22px' }}>
         <DialogContentText>{message}</DialogContentText>
       </DialogContent>
       <DialogActions>

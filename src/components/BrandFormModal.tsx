@@ -61,6 +61,21 @@ export const BrandFormModal: React.FC<BrandFormModalProps> = ({ open, onClose, o
   const [users, setUsers] = useState<Array<{ id: number; name: string; email: string }>>([]);
   const [usersLoading, setUsersLoading] = useState(false);
 
+  // Form reset fonksiyonu
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      contactEmail: '',
+      contactPhone: '',
+      assignedUserId: undefined,
+    });
+    setPhoneError('');
+    setLogoFile(null);
+    setLogoPreview(null);
+    setLogoUploading(false);
+    setIsSubmitting(false);
+  };
+
   // Logo önizlemesi için effect
   React.useEffect(() => {
     if (logoFile) {
@@ -78,6 +93,13 @@ export const BrandFormModal: React.FC<BrandFormModalProps> = ({ open, onClose, o
       setLogoPreview((initialData as any).logoUrl);
     }
   }, [initialData]);
+
+  // Modal açıldığında form'u sıfırla (yeni müşteri ekleme durumunda)
+  useEffect(() => {
+    if (open && !isUpdate) {
+      resetForm();
+    }
+  }, [open, isUpdate]);
 
   // Kullanıcıları yükle
   useEffect(() => {
@@ -227,6 +249,9 @@ export const BrandFormModal: React.FC<BrandFormModalProps> = ({ open, onClose, o
         toast.success('Logo başarıyla yüklendi!');
       }
       onClose();
+      if (!isUpdate) {
+        resetForm();
+      }
     } catch (error) {
       console.error('HATA:', error);
       toast.error('Form gönderilirken hata oluştu.');
@@ -238,7 +263,17 @@ export const BrandFormModal: React.FC<BrandFormModalProps> = ({ open, onClose, o
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog 
+      open={open} 
+      onClose={() => {
+        onClose();
+        if (!isUpdate) {
+          resetForm();
+        }
+      }} 
+      maxWidth="sm" 
+      fullWidth
+    >
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
         {/* Logo Yükle Alanı */}
@@ -396,7 +431,17 @@ export const BrandFormModal: React.FC<BrandFormModalProps> = ({ open, onClose, o
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} disabled={loading || isSubmitting || logoUploading}>İptal</Button>
+        <Button 
+          onClick={() => {
+            onClose();
+            if (!isUpdate) {
+              resetForm();
+            }
+          }} 
+          disabled={loading || isSubmitting || logoUploading}
+        >
+          İptal
+        </Button>
         <Button 
           onClick={handleSubmit} 
           variant="contained" 
