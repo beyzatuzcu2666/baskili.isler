@@ -412,7 +412,7 @@ const Login = () => {
                     fontSize: { xs: '1.5rem', sm: '1.8rem' }
                   }}
                 >
-                  Hoş Geldiniz! 👋🏻
+                  Hoş Geldiniz!
             </Typography>
                 <Typography
                   variant="body2"
