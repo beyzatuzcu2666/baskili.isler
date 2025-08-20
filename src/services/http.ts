@@ -71,6 +71,12 @@ export const http = {
       });
       
       if (!response.ok) {
+        // Login endpoint'i için 401 hatası durumunda sayfa yenileme
+        if (response.status === 401 && endpoint === '/auth/login') {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Email veya şifre hatalı');
+        }
+        
         if (response.status === 401) {
           handleUnauthorized();
           throw new Error('Unauthorized');

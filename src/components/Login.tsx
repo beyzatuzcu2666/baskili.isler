@@ -37,6 +37,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [unicornLoaded, setUnicornLoaded] = useState(false);
   const unicornRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -49,14 +50,22 @@ const Login = () => {
   const [forgotPasswordError, setForgotPasswordError] = useState('');
 
   useEffect(() => {
-    if (authService.isAuthenticated()) {
-      const userRole = authService.getUserRole();
-      if (userRole === 'FACTORY_USER') {
-        navigate('/orders');
-      } else {
-        navigate('/brands');
+    // Sadece sayfa ilk yüklendiğinde kontrol et, form submit sırasında değil
+    const checkAuth = () => {
+      if (authService.isAuthenticated()) {
+        const userRole = authService.getUserRole();
+        if (userRole === 'FACTORY_USER') {
+          navigate('/orders');
+        } else {
+          navigate('/brands');
+        }
       }
-    }
+    };
+    
+    // Kısa bir gecikme ile kontrol et, form submit sırasında karışıklık olmasın
+    const timeoutId = setTimeout(checkAuth, 100);
+    
+    return () => clearTimeout(timeoutId);
   }, [navigate]);
 
   // Unicorn Studio script'ini yükle ve başlat (yeni embed kodu)
@@ -155,8 +164,17 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Form validation
+    if (!email.trim() || !password.trim()) {
+      setError('Lütfen email ve şifre alanlarını doldurun');
+      return;
+    }
+    
     setIsLoading(true);
     setError('');
+    setIsSuccess(false);
+    
     try {
       const response = await authService.login(email, password);
       if (response && response.token) {
@@ -165,19 +183,28 @@ const Login = () => {
         // Login sonrası dealer'ı yükle
         authService.loadDealerAfterLogin();
         
-        // Role göre yönlendirme
-        const userRole = authService.getUserRole();
-        if (userRole === 'FACTORY_USER') {
-          navigate('/orders');
-        } else {
-          navigate('/brands');
-        }
+        // Başarılı login durumunu göster
+        setError(''); // Hata mesajını temizle
+        setIsSuccess(true);
+        setIsLoading(false);
+        
+        // Kısa bir gecikme sonrası yönlendirme yap
+        setTimeout(() => {
+          const userRole = authService.getUserRole();
+          if (userRole === 'FACTORY_USER') {
+            navigate('/orders');
+          } else {
+            navigate('/brands');
+          }
+        }, 1000); // 1 saniye gecikme - kullanıcının başarı mesajını görmesi için
+        
       } else {
         throw new Error('Geçersiz yanıt alındı');
       }
     } catch (err: any) {
+      console.error('Login error:', err);
       setError(err instanceof Error ? err.message : 'Bir hata oluştu. Lütfen tekrar deneyin.');
-    } finally {
+      setIsSuccess(false);
       setIsLoading(false);
     }
   };
@@ -401,9 +428,50 @@ const Login = () => {
               {/* Compact Login Form */}
               <form onSubmit={handleSubmit} style={{ margin: 0, padding: 0 }}>
             {error && (
-                  <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
-                    <AlertTitle sx={{ fontWeight: 600 }}>Giriş Hatası</AlertTitle>
+              <Alert 
+                severity="error" 
+                sx={{ 
+                  mb: 3, 
+                  borderRadius: 2,
+                  animation: 'fadeIn 0.3s ease-in-out',
+                  '@keyframes fadeIn': {
+                    '0%': {
+                      opacity: 0,
+                      transform: 'translateY(-10px)',
+                    },
+                    '100%': {
+                      opacity: 1,
+                      transform: 'translateY(0)',
+                    },
+                  },
+                }}
+              >
+                <AlertTitle sx={{ fontWeight: 600 }}>Giriş Hatası</AlertTitle>
                 {error}
+              </Alert>
+            )}
+
+            {isSuccess && (
+              <Alert 
+                severity="success" 
+                sx={{ 
+                  mb: 3, 
+                  borderRadius: 2,
+                  animation: 'fadeIn 0.3s ease-in-out',
+                  '@keyframes fadeIn': {
+                    '0%': {
+                      opacity: 0,
+                      transform: 'translateY(-10px)',
+                    },
+                    '100%': {
+                      opacity: 1,
+                      transform: 'translateY(0)',
+                    },
+                  },
+                }}
+              >
+                <AlertTitle sx={{ fontWeight: 600 }}>Giriş Başarılı!</AlertTitle>
+                Yönlendiriliyorsunuz...
               </Alert>
             )}
 
@@ -501,24 +569,32 @@ const Login = () => {
               type="submit"
               fullWidth
               variant="contained"
-              disabled={isLoading}
+              disabled={isLoading || isSuccess}
                   sx={{
                     py: 1.5,
                     fontSize: '1rem',
                     fontWeight: 600,
                     textTransform: 'none',
                     borderRadius: 2,
-                    background: 'linear-gradient(135deg, #f97316 0%, #1e3a8a 100%)',
-                    boxShadow: '0 8px 25px rgba(249, 115, 22, 0.3)',
+                    background: isSuccess 
+                      ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                      : 'linear-gradient(135deg, #f97316 0%, #1e3a8a 100%)',
+                    boxShadow: isSuccess 
+                      ? '0 8px 25px rgba(16, 185, 129, 0.3)'
+                      : '0 8px 25px rgba(249, 115, 22, 0.3)',
                     border: 'none',
                     '&:hover': {
-                      background: 'linear-gradient(135deg, #ea580c 0%, #1e40af 100%)',
-                      boxShadow: '0 12px 35px rgba(249, 115, 22, 0.4)',
+                      background: isSuccess 
+                        ? 'linear-gradient(135deg, #059669 0%, #047857 100%)'
+                        : 'linear-gradient(135deg, #ea580c 0%, #1e40af 100%)',
+                      boxShadow: isSuccess 
+                        ? '0 12px 35px rgba(16, 185, 129, 0.4)'
+                        : '0 12px 35px rgba(249, 115, 22, 0.4)',
                     },
                     '&:disabled': {
-                      background: '#cbd5e1',
-                      color: '#64748b',
-                      boxShadow: 'none',
+                      background: isSuccess ? '#10b981' : '#cbd5e1',
+                      color: isSuccess ? 'white' : '#64748b',
+                      boxShadow: isSuccess ? '0 8px 25px rgba(16, 185, 129, 0.3)' : 'none',
                     },
                   }}
             >
@@ -526,6 +602,10 @@ const Login = () => {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <CircularProgress size={20} sx={{ color: 'white' }} />
                       <span>Giriş yapılıyor...</span>
+                    </Box>
+                  ) : isSuccess ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <span>✓ Giriş Başarılı!</span>
                     </Box>
                   ) : (
                     'Sistem Girişi'

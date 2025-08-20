@@ -746,8 +746,8 @@ const Offers = () => {
     doc.text(`${netTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL`, 190, finalY + 10, { align: 'right' });
     
     // KDV
-    doc.text(`KDV (${getTaxRateDisplay(offer.items)}):`, 105, finalY + 18);
-    doc.text(`${taxTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL`, 190, finalY + 18, { align: 'right' });
+    doc.text(`KDV (${getTaxRateDisplay(offer.items)}):`, 105, finalY + 20);
+    doc.text(`${taxTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL`, 190, finalY + 20, { align: 'right' });
     
     // Ayırıcı çizgi
     doc.setDrawColor(16, 185, 129);
