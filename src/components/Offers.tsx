@@ -325,6 +325,11 @@ const Offers = () => {
     } catch (error) {
       console.error('Error updating offer:', error);
       setError('Teklif güncellenirken bir hata oluştu');
+      // Hata durumunda modal'ı kapat
+      setIsEditModalOpen(false);
+      setSelectedOffer(null);
+      setEditOffer(null);
+      toast.error('Teklif güncellenirken bir hata oluştu');
     } finally {
       setIsUpdating(false);
     }
@@ -348,6 +353,9 @@ const Offers = () => {
     } catch (error) {
       console.error('Error creating offer:', error);
       setError('Yeni teklif oluşturulürken bir hata oluştu');
+      // Hata durumunda modal'ı kapat
+      setIsCreateModalOpen(false);
+      toast.error('Teklif oluşturulurken bir hata oluştu');
     } finally {
       setIsCreating(false);
     }
@@ -2061,7 +2069,7 @@ const Offers = () => {
           </IconButton>
         </DialogTitle>
         <DialogContent sx={{ pt: 3 }}>
-          <Box sx={{ display: 'grid', gap: 3 }}>
+          <Box sx={{ display: 'grid', gap: 3, paddingTop:'13px'}}>
             <FormControl fullWidth>
                               <InputLabel id="brand-select-label">Müşteri</InputLabel>
               <Select
@@ -2336,36 +2344,46 @@ const Offers = () => {
           >
             İptal
           </Button>
-                     <Button
-            variant="contained"
-             onClick={() => {
-               const selectedBrand = brands.find(b => b.id === newOffer.brandId);
-               if (selectedBrand && newOffer.items.length > 0 && newOffer.validUntil && newOffer.totalPrice > 0) {
-                 handleCreate({
-                   brandId: newOffer.brandId,
-                   status: newOffer.status,
-                   totalPrice: newOffer.totalPrice,
-                   validUntil: newOffer.validUntil,
-                   items: newOffer.items,
-                   brandName: selectedBrand.name
-                 });
-                 setNewOffer({
-                   brandId: 0,
-                   status: 'OFFER_SENT' as const,
-                   totalPrice: 0,
-                   validUntil: '',
-                   items: [] as { productId: number; quantity: number; unitPrice: number; taxRate: number; }[]
-                 });
-               }
-             }}
-             disabled={isCreating || !newOffer.brandId || newOffer.items.length === 0 || !newOffer.validUntil || newOffer.totalPrice <= 0}
-             sx={{
-               backgroundColor: '#10b981',
-               '&:hover': { backgroundColor: '#059669' },
-               borderRadius: 2,
-               px: 3
-             }}
-           >
+                     <Tooltip 
+                       title={
+                         !newOffer.brandId ? 'Lütfen müşteri seçin' :
+                         newOffer.items.length === 0 ? 'Lütfen en az bir ürün ekleyin' :
+                         !newOffer.validUntil ? 'Lütfen geçerlilik tarihi seçin' :
+                         newOffer.totalPrice <= 0 ? 'Lütfen ürün fiyatlarını kontrol edin' :
+                         'Teklif oluştur'
+                       }
+                     >
+                       <span>
+                         <Button
+                           variant="contained"
+                           onClick={() => {
+                             const selectedBrand = brands.find(b => b.id === newOffer.brandId);
+                             if (selectedBrand && newOffer.items.length > 0 && newOffer.validUntil && newOffer.totalPrice > 0) {
+                               handleCreate({
+                                 brandId: newOffer.brandId,
+                                 status: newOffer.status,
+                                 totalPrice: newOffer.totalPrice,
+                                 validUntil: newOffer.validUntil,
+                                 items: newOffer.items,
+                                 brandName: selectedBrand.name
+                               });
+                               setNewOffer({
+                                 brandId: 0,
+                                 status: 'OFFER_SENT' as const,
+                                 totalPrice: 0,
+                                 validUntil: '',
+                                 items: [] as { productId: number; quantity: number; unitPrice: number; taxRate: number; }[]
+                               });
+                             }
+                           }}
+                           disabled={isCreating || !newOffer.brandId || newOffer.items.length === 0 || !newOffer.validUntil || newOffer.totalPrice <= 0}
+                           sx={{
+                             backgroundColor: '#10b981',
+                             '&:hover': { backgroundColor: '#059669' },
+                             borderRadius: 2,
+                             px: 3
+                           }}
+                         >
              {isCreating ? (
                <>
                  <CircularProgress size={16} sx={{ color: 'white', mr: 1 }} />
@@ -2374,7 +2392,9 @@ const Offers = () => {
              ) : (
                'Teklif Oluştur'
              )}
-          </Button>
+                           </Button>
+                         </span>
+                       </Tooltip>
         </DialogActions>
       </Dialog>
 
