@@ -163,7 +163,47 @@ const Orders = () => {
 
   // FACTORY_USER için geçici olarak tüm siparişler (backend endpoint hazır olunca değişecek)
   const userRole = authService.getUserRole();
-  const filteredOrders = orders;
+  
+  // Arama filtrelemesi
+  const filteredOrders = orders.filter(order => {
+    if (!searchTerm.trim()) {
+      return true; // Arama terimi yoksa tüm siparişleri göster
+    }
+    
+    const searchLower = searchTerm.toLowerCase().trim();
+    
+    // Sipariş ID araması
+    if (order.id.toString().includes(searchLower)) {
+      return true;
+    }
+    
+    // Müşteri adı araması
+    if (order.brand?.name?.toLowerCase().includes(searchLower)) {
+      return true;
+    }
+    
+    // Sipariş durumu araması
+    if (OrderStatusLabels[order.status]?.toLowerCase().includes(searchLower)) {
+      return true;
+    }
+    
+    // Fabrika adı araması (eğer atanmışsa)
+    if (order.factory?.name?.toLowerCase().includes(searchLower)) {
+      return true;
+    }
+    
+    // Tarih araması (oluşturulma tarihi)
+    if (new Date(order.createdAt).toLocaleDateString('tr-TR').includes(searchLower)) {
+      return true;
+    }
+    
+    // Toplam fiyat araması
+    if (order.totalPrice?.toString().includes(searchLower)) {
+      return true;
+    }
+    
+    return false;
+  });
 
   const loadOrders = async () => {
     try {
@@ -570,7 +610,7 @@ const Orders = () => {
         <CardContent sx={{ p: 3 }}>
           <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}>
             <TextField
-              placeholder="Sipariş ara..."
+              placeholder="Sipariş ID, müşteri, durum ara..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               InputProps={{
