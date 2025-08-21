@@ -26,7 +26,11 @@ import {
   Select,
   MenuItem,
   FormControl,
-  InputLabel
+  InputLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import { 
   Edit as EditIcon, 
@@ -49,6 +53,7 @@ const Factories: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedFactory, setSelectedFactory] = useState<Factory | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteFactoryId, setDeleteFactoryId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -469,6 +474,10 @@ const Factories: React.FC = () => {
                         <Tooltip title="Görüntüle">
                           <IconButton 
                             size="small"
+                            onClick={() => {
+                              setSelectedFactory(factory);
+                              setIsViewModalOpen(true);
+                            }}
                             sx={{ 
                               color: '#6b7280',
                               '&:hover': { backgroundColor: '#f3f4f6', color: '#374151' }
@@ -551,6 +560,89 @@ const Factories: React.FC = () => {
         title="Fabrika Düzenle"
         isUpdate={true}
       />
+
+      {/* View Factory Modal */}
+      <Dialog 
+        open={isViewModalOpen} 
+        onClose={() => setIsViewModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <FactoryIcon sx={{ color: '#10b981' }} />
+            <Typography variant="h6">Fabrika Detayları</Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {selectedFactory && (
+            <Box sx={{ mt: 2, display: 'grid', gap: 3 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Fabrika Adı
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                    {selectedFactory.name}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Fabrika Numarası
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                    {selectedFactory.factoryNumber || 'Belirtilmemiş'}
+                  </Typography>
+                </Box>
+              </Box>
+              
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Adres
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                  {selectedFactory.address}
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Durum
+                </Typography>
+                <Chip 
+                  label={selectedFactory.active ? 'Aktif' : 'Pasif'} 
+                  color={selectedFactory.active ? 'success' : 'default'}
+                  size="small"
+                />
+              </Box>
+
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Oluşturulma Tarihi
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                    {new Date(selectedFactory.createdAt).toLocaleDateString('tr-TR')}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Güncellenme Tarihi
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                    {selectedFactory.updatedAt ? new Date(selectedFactory.updatedAt).toLocaleDateString('tr-TR') : 'Güncellenmemiş'}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsViewModalOpen(false)}>
+            Kapat
+          </Button>
+        </DialogActions>
+      </Dialog>
       <ConfirmationDialog
         open={confirmDelete}
         onClose={() => {
